@@ -56,9 +56,10 @@ services:
       MODEL_DIR: /app/models
       AUTO_ACCEPT_THRESHOLD: ${CONFIDENCE_THRESHOLD_AUTO_ACCEPT:-0.85}
       MANUAL_REVIEW_THRESHOLD: ${CONFIDENCE_THRESHOLD_MANUAL_REVIEW:-0.60}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3002,http://localhost:3001}
     ports:
-      - "${AI_PORT:-8000}:8000"
+      # Host 8001 -> konteyner 8000 (8000 başka projede kullanılıyor)
+      - "${AI_PORT:-8001}:8000"
     volumes:
       - ./services/ai-service/models:/app/models:ro
     healthcheck:
@@ -90,14 +91,15 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-yaya_dev_password}@postgres:5432/${POSTGRES_DB:-yaya}
       AI_SERVICE_URL: http://ai-service:8000
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3002}
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       STORAGE_LOCAL_DIR: /app/.storage
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-reports}
     ports:
-      - "${API_PORT:-3000}:3000"
+      # Host 3001 -> konteyner 3000 (3000 başka projede kullanılıyor)
+      - "${API_PORT:-3001}:3000"
     volumes:
       - api_storage:/app/.storage
     depends_on:

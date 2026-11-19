@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     max_upload_mb: int = 12
     max_image_dimension: int = 4096
 
-    cors_origins: str = "http://localhost:3000,http://localhost:3001"
+    cors_origins: str = "http://localhost:3002,http://localhost:3001"
 
     @property
     def cors_origin_list(self) -> list[str]:

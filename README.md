@@ -155,11 +155,14 @@ docker compose up -d --build
 
 | Servis | Adres |
 | --- | --- |
-| API | http://localhost:3000/health |
-| API dokümantasyonu (Faz 1) | http://localhost:3000/docs |
-| AI Servisi | http://localhost:8000/health |
-| AI OpenAPI | http://localhost:8000/docs |
+| API | http://localhost:3001/health |
+| API dokümantasyonu (Faz 1) | http://localhost:3001/docs |
+| AI Servisi | http://localhost:8001/health |
+| AI OpenAPI | http://localhost:8001/docs |
 | PostgreSQL | `localhost:5432` (`yaya` / `yaya_dev_password`) |
+| Web paneli (Faz 4) | http://localhost:3002 |
+
+> **Port notu:** Host tarafında 3000 ve 8000 başka projelerle çakışabildiği için API **3001**, AI servisi **8001** portlarına map edilir. Konteyner içi portlar değişmez (3000 / 8000); `.env` içindeki `API_PORT` ve `AI_PORT` ile değiştirilebilir.
 
 ### 3) Yalnızca veritabanı ile çalışın
 
@@ -194,8 +197,9 @@ Kök `.env.example` dosyası tüm servisler için tek referanstır. Her servis k
 | --- | --- | --- |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Yerel veritabanı kimlik bilgileri | `yaya` / `yaya` / `yaya_dev_password` |
 | `DATABASE_URL` | API'nin PostgreSQL bağlantı adresi (Supabase'e yönlendirilebilir) | — |
-| `AI_SERVICE_URL` | API → AI servisi iç adresi | `http://localhost:8000` |
-| `CORS_ORIGINS` | Virgülle ayrılmış izinli origin listesi | `http://localhost:3001` |
+| `AI_SERVICE_URL` | API → AI servisi iç adresi | `http://localhost:8001` |
+| `CORS_ORIGINS` | Virgülle ayrılmış izinli origin listesi | `http://localhost:3002,http://localhost:8081` |
+| `API_PORT` / `AI_PORT` | Host port eşlemesi (konteyner içi 3000 / 8000) | `3001` / `8001` |
 | `STORAGE_DRIVER` | `local` veya `supabase` | `local` |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage / Postgres entegrasyonu | — |
 | `CONFIDENCE_THRESHOLD_AUTO_ACCEPT` | Otomatik kabul eşiği | `0.85` |

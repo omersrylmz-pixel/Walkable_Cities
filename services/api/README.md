@@ -35,8 +35,8 @@ npm run api:dev
 Sağlık kontrolü:
 
 ```bash
-curl http://localhost:3000/health
-curl http://localhost:3000/health/ready
+curl http://localhost:3001/health
+curl http://localhost:3001/health/ready
 ```
 
 ## Ortam Değişkenleri

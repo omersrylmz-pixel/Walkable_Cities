@@ -38,11 +38,11 @@ python -m venv .venv
 # source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-- Sağlık: <http://localhost:8000/health>
-- OpenAPI: <http://localhost:8000/docs>
+- Sağlık: <http://localhost:8001/health>
+- OpenAPI: <http://localhost:8001/docs>
 
 ## Docker
 

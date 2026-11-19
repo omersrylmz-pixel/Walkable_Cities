@@ -1,0 +1,10 @@
+{
+  "name": "@yaya/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Belediye yönetim paneli — Next.js + MapLibre (Faz 4'te kurulacak)",
+  "scripts": {
+    "start": "node -e \"console.log('Next.js paneli Faz 4 de eklenecek. Bkz. apps/web/README.md')\"",
+    "typecheck": "node -e \"process.exit(0)\""
+  }
+}

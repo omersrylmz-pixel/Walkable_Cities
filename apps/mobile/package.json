@@ -1,0 +1,10 @@
+{
+  "name": "@yaya/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expo tabanlı saha ihbar uygulaması (Faz 1'de kurulacak)",
+  "scripts": {
+    "start": "node -e \"console.log('Expo iskeleti Faz 1 de eklenecek. Bkz. apps/mobile/README.md')\"",
+    "typecheck": "node -e \"process.exit(0)\""
+  }
+}

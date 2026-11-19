@@ -1,0 +1,142 @@
+# ---------------------------------------------------------------------------
+# İşletim sistemi / editör
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# ---------------------------------------------------------------------------
+# Ortam değişkenleri ve sırlar
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+secrets/
+credentials.json
+
+# ---------------------------------------------------------------------------
+# Node.js / JavaScript
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+dist/
+build/
+out/
+.next/
+.turbo/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Expo / React Native
+# ---------------------------------------------------------------------------
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+*.orig.*
+ios/Pods/
+android/.gradle/
+android/app/build/
+android/local.properties
+.expo-export/
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.hypothesis/
+*.egg-info/
+.eggs/
+.ipynb_checkpoints/
+build/
+dist/
+
+# ---------------------------------------------------------------------------
+# Makine öğrenmesi: model ağırlıkları ve deney çıktıları (repoya girmez)
+# ---------------------------------------------------------------------------
+*.pt
+*.pth
+*.onnx
+*.onnx.data
+*.ort
+*.engine
+*.weights
+*.h5
+*.keras
+*.safetensors
+*.ckpt
+*.bin
+models/weights/
+models/onnx/
+runs/
+wandb/
+mlruns/
+lightning_logs/
+*.mlflow
+!services/ai-service/models/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Veri setleri ve geçici veriler
+# ---------------------------------------------------------------------------
+data/raw/
+data/processed/
+data/interim/
+datasets/
+ml-pipeline/data/*
+!ml-pipeline/data/.gitkeep
+*.tfrecord
+*.record
+
+# ---------------------------------------------------------------------------
+# Docker / runtime
+# ---------------------------------------------------------------------------
+.docker/
+*.pid
+*.seed
+.storage/
+logs/
+*.log
+
+# ---------------------------------------------------------------------------
+# Test / geçici çıktılar
+# ---------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak

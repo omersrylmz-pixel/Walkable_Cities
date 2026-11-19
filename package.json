@@ -1,0 +1,25 @@
+{
+  "name": "yaya-alani-ihlal-platformu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Yapay zekâ ile yaya alanı ihlal tespiti ve şehir analiz platformu (TÜBİTAK 2209-A)",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "apps/mobile",
+    "apps/web",
+    "services/api"
+  ],
+  "scripts": {
+    "api:dev": "npm run dev --workspace @yaya/api",
+    "api:build": "npm run build --workspace @yaya/api",
+    "api:start": "npm run start --workspace @yaya/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d postgres",
+    "stack:up": "docker compose up -d --build",
+    "stack:down": "docker compose down"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@yaya/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Yaya alanı ihlal platformu REST API (Fastify + TypeScript)",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/helmet": "^13.0.1",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

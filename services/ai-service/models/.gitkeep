@@ -1,0 +1,5 @@
+# ONNX model ağırlıkları bu dizine konur; Git'e girmez.
+# Beklenen dosyalar (Faz 2):
+#   yolo26s.onnx
+#   rf_detr_base.onnx
+#   walkway_segmentation.onnx

@@ -1,0 +1,132 @@
+# =============================================================================
+# Yaya Alanı İhlal Platformu — Yerel geliştirme yığını
+#
+#   docker compose up -d --build
+#
+# Servisler:
+#   postgres    : PostgreSQL 16 + PostGIS 3.4 + h3-pg  (init.sql otomatik çalışır)
+#   ai-service  : FastAPI + (Faz 2'den itibaren ONNX Runtime)
+#   api         : Node.js / Fastify
+#
+# Üretimde bu dosya kullanılmaz; yönetilen PostgreSQL (Supabase vb.) ve
+# ayrı konteyner orkestrasyonu tercih edilir.
+# =============================================================================
+
+name: yaya-platform
+
+services:
+  postgres:
+    build:
+      context: ./infra/docker/postgres
+      dockerfile: Dockerfile
+    image: yaya-platform/postgres-postgis-h3:16
+    container_name: yaya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+      POSTGRES_USER: ${POSTGRES_USER:-yaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_dev_password}
+      TZ: ${TZ:-Europe/Istanbul}
+      PGTZ: ${TZ:-Europe/Istanbul}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya} -d ${POSTGRES_DB:-yaya}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    shm_size: 256mb
+    networks:
+      - yaya-net
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    image: yaya-platform/ai-service:0.1.0
+    container_name: yaya-ai
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MODEL_DIR: /app/models
+      AUTO_ACCEPT_THRESHOLD: ${CONFIDENCE_THRESHOLD_AUTO_ACCEPT:-0.85}
+      MANUAL_REVIEW_THRESHOLD: ${CONFIDENCE_THRESHOLD_MANUAL_REVIEW:-0.60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    ports:
+      - "${AI_PORT:-8000}:8000"
+    volumes:
+      - ./services/ai-service/models:/app/models:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - yaya-net
+
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    image: yaya-platform/api:0.1.0
+    container_name: yaya-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-yaya_dev_password}@postgres:5432/${POSTGRES_DB:-yaya}
+      AI_SERVICE_URL: http://ai-service:8000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      STORAGE_LOCAL_DIR: /app/.storage
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-reports}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - api_storage:/app/.storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - yaya-net
+
+volumes:
+  pgdata:
+    name: yaya-pgdata
+  api_storage:
+    name: yaya-api-storage
+
+networks:
+  yaya-net:
+    name: yaya-net
+    driver: bridge

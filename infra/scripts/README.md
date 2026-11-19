@@ -1,0 +1,8 @@
+-- Operasyonel script'ler bu dizine eklenecek (Faz 1).
+--
+-- Planlananlar:
+--   backup.ps1 / backup.sh        : pg_dump + model artefakt yedeği
+--   restore.ps1 / restore.sh      : pg_restore doğrulamalı geri yükleme
+--   seed-demo.ps1                 : demo ihbar + H3 yoğunluk verisi
+--   refresh-mv.sql                : mv_h3_density CONCURRENTLY yenileme
+--   retention.sql                 : KVKK saklama süresi dolan görselleri temizleme

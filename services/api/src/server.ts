@@ -1,7 +1,16 @@
-import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { config as loadDotenv } from 'dotenv';
 
 import { buildApp } from './app.js';
 import { loadEnv } from './config/env.js';
+
+// Yerel geliştirmede iki konum denenir: servis dizini ve depo kökü.
+// Docker'da değişkenler doğrudan ortamdan gelir; eksik dosyalar yok sayılır.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+loadDotenv();
+loadDotenv({ path: path.resolve(moduleDir, '../../../.env') });
 
 async function main(): Promise<void> {
   const env = loadEnv();

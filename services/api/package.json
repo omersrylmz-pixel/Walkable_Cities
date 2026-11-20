@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate:up": "node-pg-migrate up",
-    "migrate:down": "node-pg-migrate down",
-    "migrate:create": "node-pg-migrate create"
+    "migrate:up": "node-pg-migrate up --envPath ../../.env",
+    "migrate:down": "node-pg-migrate down --envPath ../../.env",
+    "migrate:create": "node-pg-migrate create --envPath ../../.env"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

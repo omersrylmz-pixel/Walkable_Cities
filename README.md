@@ -176,7 +176,14 @@ docker compose exec postgres psql -U yaya -d yaya -c "\dt"
 
 ```bash
 npm install
-npm run api:dev
+npm run api:dev          # kök .env otomatik yüklenir
+npm run api:test         # Vitest
+```
+
+Migrasyonlar:
+
+```bash
+npm run migrate:up --workspace @yaya/api
 ```
 
 ### 5) Veritabanını sıfırlayın

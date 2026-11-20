@@ -1,102 +1,103 @@
 # Mobil Uygulama (React Native + Expo)
 
-Vatandaşın sahada **yalnızca canlı kamera** ile ihlal fotoğrafı çektiği, GPS + zaman damgası doğrulaması yapıp veriyi API'ye paketlediği uygulama.
+Vatandaşın sahada **yalnızca canlı kamera** ile ihlal fotoğrafı çektiği, GPS + zaman
+damgası doğrulaması yapıp veriyi API'ye paketlediği uygulama.
 
-> **Faz 0 durumu:** Dizin ve planlama tamamlandı. Expo iskeleti **Faz 1**'de kurulacak.
+> **Durum (Faz 1):** Expo SDK 58 iskeleti, canlı kamera, GPS doğruluk yönetimi,
+> saat farkı kontrolü, çevrimdışı kuyruk ve idempotent gönderim uygulandı.
+> Cihaz üzerinde saha testi bir sonraki adımdır.
+
+## Hızlı Başlangıç
+
+```bash
+# depo kökünde
+npm install
+npm run mobile:start      # Expo geliştirme sunucusu
+npm run mobile:android    # Android emülatörü
+npm run mobile:ios        # iOS simülatörü (macOS)
+```
+
+API adresi:
+
+| Ortam | Varsayılan adres |
+| --- | --- |
+| Android emülatörü | `http://10.0.2.2:3001` (otomatik) |
+| iOS simülatörü / web | `http://localhost:3001` (otomatik) |
+| Fiziksel cihaz | `.env` → `EXPO_PUBLIC_API_URL=http://<LAN-IP>:3001` |
 
 ## Tasarım İlkeleri
 
-1. **Galeriden yükleme yok.** Sadece `expo-camera` ile canlı çekim; bağlam doğruluğu ve kötüye kullanımın önlenmesi için.
-2. **Kanıt zinciri.** Her ihbar; çekim zamanı, GPS koordinatı, doğruluk yarıçapı, cihaz saati ve sunucu saat farkı ile paketlenir.
-3. **Çevrimdışı öncelikli.** Bağlantı yoksa ihbar cihazda kuyruğa alınır, bağlantı gelince idempotent (`client_report_id`) şekilde gönderilir.
-4. **Minimum veri.** Görsel cihaz galerisine kaydedilmez; yalnızca uygulama kum havuzunda tutulur ve başarılı yüklemeden sonra silinir.
+1. **Galeriden yükleme yok.** Yalnızca `expo-camera` ile canlı çekim; sahte/başlam
+   doğrulaması ve kötüye kullanımın önlenmesi için.
+2. **Kanıt zinciri.** Her ihbar; çekim zamanı, GPS koordinatı, doğruluk yarıçapı,
+   cihaz saati ve sunucu saat farkı ile paketlenir.
+3. **Çevrimdışı öncelikli.** Bağlantı yoksa ihbar cihazda kuyruğa alınır, bağlantı
+   gelince idempotent (`clientReportId`) şekilde gönderilir.
+4. **Minimum veri.** Görsel cihaz galerisine kaydedilmez; yalnızca uygulamanın belge
+   dizinindeki kuyruk klasöründe tutulur ve başarılı yüklemeden sonra silinir.
 
-## Planlanan Teknolojiler
-
-| Paket | Amaç |
-| --- | --- |
-| `expo` (SDK 52+) | Uygulama çatısı, EAS Build |
-| `expo-camera` | Canlı kamera, çekim |
-| `expo-location` | GPS, doğruluk (accuracy) takibi |
-| `expo-secure-store` | Oturum token'ı |
-| `expo-file-system` | Çevrimdışı kuyruk ve geçici dosyalar |
-| `expo-image-manipulator` | Yeniden boyutlandırma (yükleme öncesi) |
-| `@react-native-community/netinfo` | Bağlantı durumu |
-| `react-native-mmkv` (veya AsyncStorage) | Kuyruk meta verisi |
-
-## Çekim ve Doğrulama Akışı
+## Akış
 
 ```text
-[Kamera izni] -> [Canlı önizleme + konum katmanı]
-      -> [Çekim]
-      -> [GPS: accuracy <= 25 m olana kadar bekle / en iyi örneği al]
-      -> [Zaman: cihaz saati + capture timestamp (ISO 8601, UTC)]
-      -> [Sunucu saat farkı kontrolü: |drift| > 120 s ise uyar]
-      -> [Yerel ön işleme: max 1920 px, JPEG q=85]
-      -> [JSON paket + multipart upload]
-      -> [201 Created -> kuyruktan sil]
-      -> [Ağ hatası -> kuyrukta tut, üstel geri çekilme ile yeniden dene]
+[Kamera izni] -> [Canlı önizleme + GPS/saat rozetleri]
+      -> [Fotoğraf çek]
+      -> [GPS: hedef <= 25 m; en fazla 6 deneme, en iyi örnek]
+      -> [Saat farkı: sunucu Date başlığı ile karşılaştır]
+      -> [Görsel: max 1920 px, JPEG q=0.85, EXIF düşer]
+      -> [Kuyruğa yaz (AsyncStorage + belge dizini)]
+      -> [Multipart POST /v1/reports]
+      -> [201/200 -> kuyruktan ve diskten sil]
+      -> [Ağ hatası -> kuyrukta tut, bağlantıda otomatik dene]
 ```
 
-## Gönderilecek Paket (hedef sözleşme)
-
-```json
-{
-  "clientReportId": "3f1c9b0e-6d1e-4c2e-9a57-0b6f5c1d2e44",
-  "violationType": "kaldirim_isgali",
-  "capturedAt": "2026-11-19T09:14:22.512Z",
-  "location": {
-    "latitude": 39.7477,
-    "longitude": 37.0179,
-    "accuracyM": 8.4,
-    "source": "device"
-  },
-  "device": {
-    "platform": "android",
-    "osVersion": "15",
-    "appVersion": "0.1.0",
-    "clockDriftSeconds": 12
-  },
-  "description": "Kaldırımda park etmiş araç",
-  "image": "<multipart dosyası, EXIF temizlenmiş>"
-}
-```
-
-> Görsel ayrı multipart parçası olarak gönderilir; JSON alanı `report` adıyla taşınır. API tarafı Faz 1'de bu sözleşmeyi zod ile doğrulayacak.
-
-## Planlanan Klasör Yapısı
+## Klasör Yapısı
 
 ```text
 apps/mobile/
-├── app/                    # expo-router sayfaları
-│   ├── (auth)/
-│   ├── capture.tsx
-│   ├── report/[id].tsx
-│   └── _layout.tsx
+├── app.json                 # izinler, plugin'ler, uygulama kimliği
 ├── src/
-│   ├── api/                # API istemcisi, retry, idempotency
-│   ├── components/         # kamera overlay, GPS rozeti, form alanları
-│   ├── features/           # capture, queue, auth
-│   ├── lib/                # tarih, konum, hash yardımcıları
-│   ├── store/              # kuyruk ve oturum durumu
-│   └── theme/
-├── assets/
-├── app.json
-├── eas.json
-└── package.json
+│   ├── app/
+│   │   ├── _layout.tsx      # Stack + açılışta/bağlantıda kuyruk gönderimi
+│   │   ├── index.tsx        # canlı kamera, GPS/saat durumu, çekim formu
+│   │   └── queue.tsx        # gönderim kuyruğu, tekrar dene / sil
+│   ├── hooks/useQueue.ts    # kuyruk aboneliği
+│   └── lib/
+│       ├── api.ts           # multipart istemci, hata sınıflandırma, saat farkı
+│       ├── config.ts        # API URL, eşikler, görsel limitleri
+│       ├── format.ts        # tarih/doğruluk biçimlendirme
+│       ├── location.ts      # izin + hedefli GPS okuma
+│       ├── media.ts         # yeniden boyutlandırma, JPEG, kalıcı kopya
+│       ├── queue.ts         # AsyncStorage kuyruğu, eşzamanlı gönderim kilidi
+│       └── types.ts         # ihlal türleri, QueueItem
 ```
+
+## Doğrulama Kuralları
+
+| Kural | Değer |
+| --- | --- |
+| GPS hedef doğruluğu | ≤ 25 m (yeniden denenir) |
+| GPS sert sınır | > 50 m ise gönderim engellenir |
+| Saat farkı uyarısı | \|fark\| > 120 sn |
+| Saat farkı engeli | Cihaz 240 sn'den fazla ileriyse |
+| Görsel uzun kenarı | 1920 px |
+| JPEG kalitesi | 0.85 |
+| Otomatik deneme | En fazla 8 (4xx kalıcı hata ise durur) |
 
 ## İzinler
 
 | Platform | İzin | Gerekçe |
 | --- | --- | --- |
-| Android | `CAMERA`, `ACCESS_FINE_LOCATION` | Canlı çekim ve konum |
+| Android | `CAMERA`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | Canlı çekim ve konum |
 | iOS | `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription` | Aynı |
 
-## Faz 1 Kabul Kriterleri
+Ses kaydı izni istenmez (`recordAudioAndroid: false`).
 
-- [ ] Expo projesi TypeScript ile ayağa kalkıyor
-- [ ] Canlı kamera çekimi ve galeri erişimi kapalı
-- [ ] GPS doğruluk eşiği ve zaman kayması kontrolü uygulanıyor
-- [ ] Çevrimdışı kuyruk + idempotent yeniden gönderim çalışıyor
-- [ ] `client_report_id` ile tekrar gönderimde mükerrer kayıt oluşmuyor
+## Faz 1 Kabul Durumu
+
+- [x] Expo projesi TypeScript ile derleniyor (`tsc --noEmit`)
+- [x] Canlı kamera çekimi; galeri erişimi yok
+- [x] GPS doğruluk eşiği ve yeniden deneme
+- [x] Saat kayması kontrolü ve uyarısı
+- [x] Çevrimdışı kuyruk + idempotent yeniden gönderim
+- [x] `clientReportId` ile tekrar gönderimde mükerrer kayıt oluşmuyor
+- [ ] Fiziksel cihazda saha testi (Faz 1 kapanışı)

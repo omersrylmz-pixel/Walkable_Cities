@@ -185,7 +185,19 @@ npm run api:dev
 npm run db:reset   # volume'u siler, init.sql yeniden çalışır
 ```
 
-> **Not:** `infra/init.sql` yalnızca **boş bir volume** üzerinde çalışır. Şema değişiklikleri Faz 1'den itibaren sürümlü migrasyonlarla yönetilir (`services/api/migrations`, `node-pg-migrate`).
+> **Not:** `infra/init.sql` yalnızca **boş bir volume** üzerinde çalışır. Şema değişiklikleri Faz 1'den itibaren sürümlü migrasyonlarla yönetilir (`services/api/migrations`, `node-pg-migrate`). API konteyneri açılışta `node-pg-migrate up` çalıştırır.
+
+### 6) Mobil uygulamayı çalıştırın
+
+```bash
+npm run mobile:start        # Expo geliştirme sunucusu
+npm run mobile:android      # Android emülatöründe aç
+```
+
+- Android emülatöründe API adresi otomatik olarak `http://10.0.2.2:3001` kullanılır.
+- Fiziksel cihazda `.env` içinde `EXPO_PUBLIC_API_URL=http://<bilgisayar-LAN-IP>:3001` ayarlanmalıdır.
+- Uygulama yalnızca **canlı kamera** ile çekim yapar; galeri erişimi yoktur.
+- Çevrimdışıyken çekilen ihbarlar cihazda kuyruğa alınır ve bağlantı gelince idempotent olarak gönderilir.
 
 ---
 

@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Yaya İhlal",
+    "slug": "yaya-alani-ihlal",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "yaya",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yaya.ihlal"
+    },
+    "android": {
+      "package": "com.yaya.ihlal",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "İhlal fotoğrafı çekmek için kameraya erişim gerekiyor.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "İhbar konumunu doğrulamak için konumunuza erişim gerekiyor."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

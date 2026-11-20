@@ -32,12 +32,12 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 **Hedef:** Uçtan uca "çek → doğrula → gönder → kaydet" akışının ilk sürümü.
 
 **Mobil**
-- [ ] Expo + TypeScript + expo-router iskeleti
-- [ ] `expo-camera` ile canlı çekim; galeri erişimi kapalı
-- [ ] `expo-location` ile GPS; doğruluk eşiği ve yeniden deneme
-- [ ] Zaman damgası + sunucu saat farkı kontrolü
-- [ ] Yerel kuyruk (çevrimdışı) + idempotent yeniden gönderim
-- [ ] `client_report_id` üretimi ve kalıcılığı
+- [x] Expo + TypeScript + expo-router iskeleti
+- [x] `expo-camera` ile canlı çekim; galeri erişimi kapalı
+- [x] `expo-location` ile GPS; doğruluk eşiği ve yeniden deneme
+- [x] Zaman damgası + sunucu saat farkı kontrolü
+- [x] Yerel kuyruk (çevrimdışı) + idempotent yeniden gönderim
+- [x] `client_report_id` üretimi ve kalıcılığı
 
 **API**
 - [x] PostgreSQL bağlantı havuzu (`pg`) ve migrasyon altyapısı (node-pg-migrate)

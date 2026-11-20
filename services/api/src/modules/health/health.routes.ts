@@ -1,14 +1,28 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import type { AppEnv } from '../../config/env.js';
+import { pingDatabase } from '../../db/pool.js';
+import type { Pool } from '../../db/pool.js';
+import type { StorageAdapter } from '../../storage/types.js';
 
 export interface HealthRoutesOptions {
   env: AppEnv;
+  db: Pool | null;
+  storage: StorageAdapter;
+}
+
+const AI_PROBE_TIMEOUT_MS = 2_000;
+
+interface DependencyStatus {
+  status: 'ok' | 'error' | 'not_configured';
+  detail?: string;
+  latencyMs?: number;
 }
 
 /**
- * Faz 0 sağlık uçları.
- * Faz 1'de `/health/ready` PostgreSQL ve AI servisi bağımlılıklarını gerçekten yoklayacak.
+ * Sağlık uçları.
+ * - `/health`: süreç ayakta mı (liveness)
+ * - `/health/ready`: PostgreSQL ve AI servisi gerçekten erişilebilir mi (readiness)
  */
 export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (app, opts) => {
   const startedAt = Date.now();
@@ -23,25 +37,31 @@ export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (app,
   }));
 
   app.get('/ready', async (_request, reply) => {
-    const dependencies = {
+    const database = await probeDatabase(opts.db);
+    const aiService = await probeAiService(opts.env.AI_SERVICE_URL);
+
+    // Veritabanı zorunlu bağımlılık; AI servisi geçici olarak erişilemezse
+    // ihbarlar kuyrukta bekleyebilir, bu yüzden 200 + "degraded" döneriz.
+    const ready = database.status === 'ok';
+    const status = !ready ? 'not_ready' : aiService.status === 'ok' ? 'ready' : 'degraded';
+
+    const dependencies: Record<string, DependencyStatus | Record<string, unknown>> = {
       database: {
-        configured: Boolean(opts.env.DATABASE_URL),
-        status: opts.env.DATABASE_URL ? 'configured' : 'not_configured',
+        ...database,
+        configured: Boolean(opts.db),
       },
       aiService: {
         url: opts.env.AI_SERVICE_URL,
-        status: 'not_probed',
+        ...aiService,
       },
       storage: {
-        driver: opts.env.STORAGE_DRIVER,
-        status: 'configured',
+        driver: opts.storage.driver,
+        status: 'ok',
       },
     };
 
-    const ready = dependencies.database.configured;
-
     return reply.code(ready ? 200 : 503).send({
-      status: ready ? 'ready' : 'degraded',
+      status,
       timestamp: new Date().toISOString(),
       dependencies,
     });
@@ -53,3 +73,46 @@ export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (app,
     node: process.version,
   }));
 };
+
+async function probeDatabase(db: Pool | null): Promise<DependencyStatus> {
+  if (!db) {
+    return { status: 'not_configured', detail: 'DATABASE_URL tanımlı değil' };
+  }
+
+  const start = Date.now();
+  try {
+    await pingDatabase(db);
+    return { status: 'ok', latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      status: 'error',
+      latencyMs: Date.now() - start,
+      detail: error instanceof Error ? error.message : 'bilinmeyen hata',
+    };
+  }
+}
+
+async function probeAiService(baseUrl: string): Promise<DependencyStatus> {
+  const start = Date.now();
+  try {
+    const response = await fetch(new URL('/health', baseUrl), {
+      signal: AbortSignal.timeout(AI_PROBE_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      return {
+        status: 'error',
+        latencyMs: Date.now() - start,
+        detail: `HTTP ${response.status}`,
+      };
+    }
+
+    return { status: 'ok', latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      status: 'error',
+      latencyMs: Date.now() - start,
+      detail: error instanceof Error ? error.message : 'AI servisine ulaşılamadı',
+    };
+  }
+}

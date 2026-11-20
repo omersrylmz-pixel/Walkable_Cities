@@ -20,9 +20,15 @@ COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 
+# Faz 1: migrasyonlar ve başlangıç betiği
+COPY --chown=node:node migrations ./migrations
+COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 RUN mkdir -p /app/.storage && chown -R node:node /app/.storage
 
 USER node
 EXPOSE 3000
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

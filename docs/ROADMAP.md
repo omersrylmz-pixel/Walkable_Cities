@@ -40,11 +40,11 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 - [ ] `client_report_id` üretimi ve kalıcılığı
 
 **API**
-- [ ] PostgreSQL bağlantı havuzu (`pg`) ve migrasyon altyapısı (node-pg-migrate)
-- [ ] `POST /v1/reports` multipart + zod doğrulama
-- [ ] Idempotency ve SHA-256 mükerrer kontrolü
-- [ ] Görsel depolama adaptörü (`local` / `supabase`)
-- [ ] `GET /v1/reports/:id`, `GET /v1/reports`
+- [x] PostgreSQL bağlantı havuzu (`pg`) ve migrasyon altyapısı (node-pg-migrate)
+- [x] `POST /v1/reports` multipart + zod doğrulama
+- [x] Idempotency ve SHA-256 mükerrer kontrolü
+- [x] Görsel depolama adaptörü (`local` / `supabase`)
+- [x] `GET /v1/reports/:id`, `GET /v1/reports`
 
 **Kabul kriterleri**
 - Aynı `clientReportId` iki kez gönderildiğinde tek kayıt oluşuyor

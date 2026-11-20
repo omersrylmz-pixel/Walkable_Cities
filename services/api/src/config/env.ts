@@ -25,6 +25,7 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:3002,http://localhost:8081'),
 
   DATABASE_URL: optionalString,
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
   AI_SERVICE_URL: z.string().url().default('http://localhost:8001'),
 
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
@@ -32,6 +33,9 @@ const envSchema = z.object({
   SUPABASE_URL: optionalUrl,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default('reports'),
+
+  /** Tek görsel için üst sınır (MB). */
+  MAX_UPLOAD_MB: z.coerce.number().int().positive().max(50).default(12),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

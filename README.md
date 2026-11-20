@@ -185,9 +185,37 @@ npm run api:dev
 npm run db:reset   # volume'u siler, init.sql yeniden çalışır
 ```
 
-> **Not:** `infra/init.sql` yalnızca **boş bir volume** üzerinde çalışır. Şema değişiklikleri Faz 1'den itibaren sürümlü migrasyonlarla yönetilecektir.
+> **Not:** `infra/init.sql` yalnızca **boş bir volume** üzerinde çalışır. Şema değişiklikleri Faz 1'den itibaren sürümlü migrasyonlarla yönetilir (`services/api/migrations`, `node-pg-migrate`).
 
 ---
+
+## İhbar API'si (Faz 1)
+
+Taban adres: `http://localhost:3001/v1`
+
+| Uç | Açıklama |
+| --- | --- |
+| `POST /reports` | Yeni ihbar (multipart: `report` JSON + `image` dosyası) |
+| `GET /reports` | Sayfalı liste — `status`, `violationType`, `limit`, `offset` |
+| `GET /reports/:id` | Tek ihbar, görselleriyle birlikte |
+| `GET /reports/:id/images/:kind` | Görseli ikili olarak döndürür (`original`, `anonymized`, `thumbnail`) |
+| `GET /meta` | İhlal türleri ve karar eşikleri |
+
+```bash
+curl -X POST http://localhost:3001/v1/reports \
+  -F 'report={"clientReportId":"3f5d1f9e-6f9f-4b3f-9d3b-6d1f9a2c4b7e","violationType":"kaldirim_isgali","capturedAt":"2026-03-15T11:58:00.000Z","location":{"latitude":41.0082,"longitude":28.9784,"accuracyM":8.5}};type=application/json' \
+  -F 'image=@ihbar.jpg;type=image/jpeg'
+```
+
+**Davranış sözleşmeleri**
+
+- **Idempotency:** Aynı `clientReportId` tekrar gönderilirse yeni kayıt oluşmaz; `200` + `Idempotent-Replay: true` döner. Yeni kayıt `201` + `Location` başlığı ile döner.
+- **Mükerrer görsel:** SHA-256 birebir eşleşmede `duplicateOf` ve `duplicateScore = 1` atanır. SHA-256 farklıysa 75 m / ±6 saat içindeki benzer ihbarlar `0.6·mesafe + 0.4·zaman` skoruyla değerlendirilir; `≥ 0.70` mükerrer sayılır.
+- **Doğrulama:** `capturedAt` en fazla 5 dk gelecekte ve 180 günden yeni olmalı; GPS doğruluğu ≤ 150 m; görsel JPEG/PNG/WebP (sihirli baytlarla doğrulanır) ve ≤ 12 MB.
+- **Hata zarfı:** RFC 7807 `application/problem+json` (`type`, `status`, `code`, `detail`, `traceId`, `errors`).
+- **H3:** `h3_cell` PostgreSQL trigger'ı ile doldurulur; 64-bit taşmasını önlemek için API'de **string** olarak döner.
+
+
 
 ## Ortam Değişkenleri
 
@@ -197,6 +225,8 @@ Kök `.env.example` dosyası tüm servisler için tek referanstır. Her servis k
 | --- | --- | --- |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Yerel veritabanı kimlik bilgileri | `yaya` / `yaya` / `yaya_dev_password` |
 | `DATABASE_URL` | API'nin PostgreSQL bağlantı adresi (Supabase'e yönlendirilebilir) | — |
+| `DATABASE_POOL_MAX` | PostgreSQL bağlantı havuzu üst sınırı | `10` |
+| `MAX_UPLOAD_MB` | Tek görsel için üst boyut (MB) | `12` |
 | `AI_SERVICE_URL` | API → AI servisi iç adresi | `http://localhost:8001` |
 | `CORS_ORIGINS` | Virgülle ayrılmış izinli origin listesi | `http://localhost:3002,http://localhost:8081` |
 | `API_PORT` / `AI_PORT` | Host port eşlemesi (konteyner içi 3000 / 8000) | `3001` / `8001` |

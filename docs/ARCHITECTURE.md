@@ -112,7 +112,7 @@ sequenceDiagram
 - Manuel kararlar (`manual_accept` / `manual_reject`) skor güncellemelerinde korunur.
 - Eşik değişikliği audit log'a yazılır (Faz 4 paneli).
 
-**Neden 0.85 / 0.60?** Başlangıç değerleri; Faz 2 sonunda doğrulama seti üzerinde precision/recall dengesine göre kalibre edilecek. Otomatik kabulün yanlış pozitif maliyeti yüksek olduğu için muhafazakâr başlanır.
+**Neden 0.85 / 0.60?** Başlangıç değerleri; saha pilotunda (Faz 7) doğrulama seti üzerinde precision/recall dengesine göre kalibre edilecek. Otomatik kabulün yanlış pozitif maliyeti yüksek olduğu için muhafazakâr başlanır.
 
 ## 5. Mekânsal Analiz Tasarımı
 

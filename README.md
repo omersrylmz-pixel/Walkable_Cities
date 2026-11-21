@@ -4,7 +4,7 @@
 
 Yapay zekâ destekli, KVKK uyumlu ve mekânsal analiz odaklı bir yaya yolu ihlal tespit / karar destek platformu. Vatandaşların sahada çektikleri fotoğraflar, yapay zekâ servisinde nesne tespiti ve segmentasyon ile analiz edilir; güven skoruna göre otomatik kabul, manuel inceleme veya otomatik ret kararı üretilir. Biriken veriler PostGIS + H3 ızgarası üzerinde sıcak nokta (hotspot) analizine dönüşür ve belediye yönetim paneline sunulur.
 
-> **Durum:** Faz 0 — Monorepo iskeleti, altyapı ve veritabanı şeması tamamlandı.
+> **Durum:** Faz 2 — AI servisi çıkarım hattı, overlap/skor/karar mekanizması ve testler tamamlandı. Gerçek YOLO26 / RF-DETR / segmentasyon ağırlıkları ve doğrulama seti henüz yok; geliştirme/CI ortamında deterministik yedek hat kullanılıyor.
 
 ---
 
@@ -109,9 +109,12 @@ yaya-alani-ihlal-platformu/
 │   │   └── Dockerfile
 │   └── ai-service/             # FastAPI + ONNX Runtime
 │       ├── app/
-│       │   ├── api/            # HTTP rotaları
-│       │   └── core/           # Ayarlar, (Faz 2) model yükleme
+│       │   ├── api/            # analyze, models, health, RFC 7807 hatalar
+│       │   ├── core/           # Ayarlar
+│       │   ├── schemas/        # camelCase API sözleşmeleri
+│       │   └── services/       # ONNX, ön/son işleme, overlap, skor
 │       ├── models/             # ONNX ağırlıkları (git'e girmez)
+│       ├── tests/              # sentetik görsellerle pytest
 │       └── Dockerfile
 ├── ml-pipeline/                # Eğitim / export hattı
 │   ├── configs/
@@ -135,7 +138,7 @@ yaya-alani-ihlal-platformu/
 ### Ön koşullar
 
 - Node.js **>= 20.11** (LTS önerilir)
-- Python **3.11 – 3.12** (AI servisi için; 3.12 önerilir)
+- Python **3.11 – 3.13** (AI servisi için; Docker imajı 3.12 kullanır)
 - Docker Desktop (Compose v2)
 - Git
 
@@ -158,11 +161,26 @@ docker compose up -d --build
 | API | http://localhost:3001/health |
 | API dokümantasyonu (Faz 1) | http://localhost:3001/docs |
 | AI Servisi | http://localhost:8001/health |
+| AI hazırlık | http://localhost:8001/health/ready |
+| AI model durumu | http://localhost:8001/v1/models |
 | AI OpenAPI | http://localhost:8001/docs |
 | PostgreSQL | `localhost:5432` (`yaya` / `yaya_dev_password`) |
 | Web paneli (Faz 4) | http://localhost:3002 |
 
 > **Port notu:** Host tarafında 3000 ve 8000 başka projelerle çakışabildiği için API **3001**, AI servisi **8001** portlarına map edilir. Konteyner içi portlar değişmez (3000 / 8000); `.env` içindeki `API_PORT` ve `AI_PORT` ile değiştirilebilir.
+
+AI analizini denemek için:
+
+```bash
+curl http://localhost:8001/v1/models
+
+curl -X POST http://localhost:8001/v1/analyze \
+  -H "X-Request-ID: demo-1" \
+  -F "image=@ornek.jpg;type=image/jpeg" \
+  -F "includeMask=true"
+```
+
+ONNX ağırlığı yoksa yanıt `backend: "heuristic"` döner. Ayrıntılı sözleşme ve örnek yanıt: [`services/ai-service/README.md`](services/ai-service/README.md).
 
 ### 3) Yalnızca veritabanı ile çalışın
 
@@ -253,6 +271,13 @@ Kök `.env.example` dosyası tüm servisler için tek referanstır. Her servis k
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage / Postgres entegrasyonu | — |
 | `CONFIDENCE_THRESHOLD_AUTO_ACCEPT` | Otomatik kabul eşiği | `0.85` |
 | `CONFIDENCE_THRESHOLD_MANUAL_REVIEW` | Manuel inceleme alt eşiği | `0.60` |
+| `DETECTOR_MODEL_FILE` / `SEGMENTER_MODEL_FILE` | `MODEL_DIR` içindeki ONNX dosya adları | `detector.onnx` / `segmenter.onnx` |
+| `DETECTOR_OUTPUT_FORMAT` | Detektör çıktı sözleşmesi: `yolo` veya `detr` | `yolo` |
+| `DETECTOR_INPUT_SIZE` / `SEGMENTER_INPUT_SIZE` | Kare model giriş boyutları | `640` / `512` |
+| `ANALYSIS_MAX_DIMENSION` | Analiz öncesi görselin uzun kenar sınırı | `1024` |
+| `SCORE_TEMPERATURE` | Temperature scaling; `1.0` = kalibrasyon yok | `1.0` |
+| `ALLOW_HEURISTIC_FALLBACK` | Ağırlık yoksa yedek hat (üretimde `false`) | `true` |
+| `WARMUP_ON_STARTUP` | Açılışta model ısınma çalıştırması | `true` |
 
 > Supabase kullanılacaksa: PostGIS etkinleştirilmeli, `h3` eklentisi mevcut değilse `h3_cell` uygulama katmanında hesaplanmalıdır (bkz. `infra/README.md`).
 
@@ -318,8 +343,8 @@ Tüm alanlar ve kısıtlar için [`infra/init.sql`](infra/init.sql).
 | Faz | Kapsam | Durum |
 | --- | --- | --- |
 | 0 | Monorepo iskeleti, README, .gitignore, docker-compose, PostGIS/H3 şeması | ✅ |
-| 1 | Expo mobil iskeleti, kamera/GPS/zaman doğrulama, API iskeleti ve migrasyonlar | ⏳ |
-| 2 | AI servisi: ONNX Runtime, YOLO26/RF-DETR, segmentasyon, overlap hesabı | ⏳ |
+| 1 | Expo mobil iskeleti, kamera/GPS/zaman doğrulama, API iskeleti ve migrasyonlar | ✅ |
+| 2 | AI servisi: ONNX Runtime, tespit/segmentasyon hattı, overlap, skor füzyonu, karar ve testler | ✅ (ağırlık/eğitim bekliyor) |
 | 3 | KVKK anonimleştirme, mükerrer kontrol, karar hattı ve testler | ⏳ |
 | 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ⏳ |
 | 5 | H3 agregasyon, DBSCAN / Getis-Ord Gi* sıcak nokta analizi | ⏳ |

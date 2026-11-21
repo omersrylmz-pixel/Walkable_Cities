@@ -54,23 +54,25 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 
 ---
 
-## Faz 2 — Yapay Zekâ Servisi
+## Faz 2 — Yapay Zekâ Servisi 🚧
 
 **Hedef:** Gerçek çıkarım hattı ve overlap hesabı.
 
-- [ ] `ml-pipeline`: veri seti dönüştürücüleri, etiket doğrulama raporu
+- [x] `ml-pipeline`: veri seti dönüştürücüleri, etiket doğrulama raporu
 - [ ] YOLO26 eğitimi + RF-DETR karşılaştırması (mAP50, mAP50-95)
 - [ ] Kaldırım / yaya geçidi segmentasyon modeli (mIoU raporu)
-- [ ] ONNX export + `onnxruntime` oturum yönetimi
-- [ ] `POST /v1/analyze`: görsel -> tespitler + maske + `overlap_ratio`
-- [ ] Skor füzyonu + kalibrasyon (temperature scaling)
-- [ ] Model warm-up, sürüm raporu, gecikme ölçümü
-- [ ] AI servisi için birim testleri (sentetik görsellerle)
+- [x] ONNX export yardımcısı + `onnxruntime` oturum yönetimi
+- [x] `POST /v1/analyze`: görsel -> tespitler + maske + `overlap_ratio`
+- [x] Skor füzyonu + kalibrasyon (temperature scaling)
+- [x] Model warm-up, sürüm raporu, gecikme ölçümü
+- [x] AI servisi için birim testleri (sentetik görsellerle)
+
+> **Durum notu:** API sözleşmesi, overlap/skor/karar hattı ve testler hazır. Gerçek veri seti, GPU ve eğitilmiş ağırlıklar olmadığı için YOLO26/RF-DETR eğitimi, segmentasyon mIoU raporu ve 20 görsellik saha ölçümü açık. Ağırlık yokken geliştirme/CI için deterministik `heuristic` yedek hat kullanılır (`ALLOW_HEURISTIC_FALLBACK`, üretimde `false`).
 
 **Kabul kriterleri**
-- 20 görsellik doğrulama setinde uçtan uca analiz < 2 s/görsel (CPU)
-- Overlap hesabı, elle işaretlenmiş 10 örnekle ±0.05 toleransta
-- Aynı görsel + aynı model sürümü deterministik sonuç veriyor
+- [ ] 20 görsellik doğrulama setinde uçtan uca analiz < 2 s/görsel (CPU)
+- [ ] Overlap hesabı, elle işaretlenmiş 10 örnekle ±0.05 toleransta
+- [x] Aynı görsel + aynı model sürümü deterministik sonuç veriyor (sentetik test)
 
 ---
 

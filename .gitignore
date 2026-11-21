@@ -117,7 +117,8 @@ lightning_logs/
 data/raw/
 data/processed/
 data/interim/
-datasets/
+# Yalnızca kök seviyedeki ham veri seti dizini; kod içindeki `src/datasets` korunur.
+/datasets/
 ml-pipeline/data/*
 !ml-pipeline/data/.gitkeep
 *.tfrecord

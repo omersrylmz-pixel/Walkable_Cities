@@ -1,0 +1,53 @@
+# -----------------------------------------------------------------------------
+# Model sınıf şeması -> platform ihlal türü eşlemesi
+#
+# Bu dosya eğitim/etiketleme sözleşmesidir. AI servisi çalışırken sınıf
+# adlarını `services/ai-service/models/classes.json` dosyasından okur;
+# `configs/classes.example.json` bu dosyanın JSON karşılığıdır.
+# -----------------------------------------------------------------------------
+
+detector_classes:
+  0:
+    name: vehicle_on_walkway
+    violation_type: kaldirim_isgali
+    severity: 4
+  1:
+    name: vehicle_on_crosswalk
+    violation_type: yaya_gecidi_ihlali
+    severity: 5
+  2:
+    name: street_furniture
+    violation_type: kaldirim_isgali
+    severity: 3
+  3:
+    name: construction_material
+    violation_type: gecici_engel
+    severity: 3
+  4:
+    name: container_obstacle
+    violation_type: sabit_engel
+    severity: 4
+  5:
+    name: surface_defect
+    violation_type: yuzey_bozulmasi
+    severity: 3
+
+segment_classes:
+  0: background
+  1: sidewalk
+  2: crosswalk
+  3: road
+  4: obstacle
+
+# Karar eşikleri (veritabanındaki system_setting ile aynı tutulmalı)
+decision_thresholds:
+  auto_accept: 0.85
+  manual_review: 0.60
+
+# Overlap / skor füzyonu (services/ai-service/app/services/scoring.py)
+score_fusion:
+  confidence: 0.45
+  placement: 0.30
+  coverage: 0.15
+  severity: 0.10
+  coverage_saturation: 0.50

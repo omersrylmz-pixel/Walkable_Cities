@@ -1,0 +1,8 @@
+[
+  "vehicle_on_walkway",
+  "vehicle_on_crosswalk",
+  "street_furniture",
+  "construction_material",
+  "container_obstacle",
+  "surface_defect"
+]

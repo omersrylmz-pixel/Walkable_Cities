@@ -1,11 +1,15 @@
-# Faz 2'de doldurulacak.
+# Çekirdek yardımcılar (dönüştürücü, doğrulama, metrikler)
+numpy==2.3.4
+
+# -----------------------------------------------------------------------------
+# Eğitim / export — veri seti ve GPU ortamı hazır olduğunda etkinleştirin.
+# -----------------------------------------------------------------------------
 # ultralytics==8.3.*
 # torch==2.5.*
 # torchvision==0.20.*
 # onnx==1.17.*
-# onnxruntime==1.20.*
+# onnxruntime==1.31.1
 # opencv-python-headless==4.10.*
-# numpy==2.2.*
 # pyyaml==6.0.*
 # scikit-learn==1.6.*
 # h3==4.1.*

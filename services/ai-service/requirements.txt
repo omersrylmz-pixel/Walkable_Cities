@@ -4,11 +4,7 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 python-multipart==0.0.20
 
-# -----------------------------------------------------------------------------
-# Faz 2'de etkinleştirilecek bağımlılıklar (ONNX çıkarımı, görüntü işleme)
-# -----------------------------------------------------------------------------
-# onnxruntime==1.20.1
-# numpy==2.2.1
-# opencv-python-headless==4.10.0.84
-# pillow==11.0.0
-# h3==4.1.2
+# Çıkarım ve görüntü işleme
+numpy==2.3.4
+pillow==12.0.0
+onnxruntime==1.31.1

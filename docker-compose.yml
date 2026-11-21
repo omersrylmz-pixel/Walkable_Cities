@@ -47,13 +47,29 @@ services:
     build:
       context: ./services/ai-service
       dockerfile: Dockerfile
-    image: yaya-platform/ai-service:0.1.0
+    image: yaya-platform/ai-service:0.2.0
     container_name: yaya-ai
     restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MODEL_DIR: /app/models
+      DETECTOR_MODEL_FILE: ${DETECTOR_MODEL_FILE:-detector.onnx}
+      SEGMENTER_MODEL_FILE: ${SEGMENTER_MODEL_FILE:-segmenter.onnx}
+      DETECTOR_OUTPUT_FORMAT: ${DETECTOR_OUTPUT_FORMAT:-yolo}
+      DETECTOR_INPUT_SIZE: ${DETECTOR_INPUT_SIZE:-640}
+      SEGMENTER_INPUT_SIZE: ${SEGMENTER_INPUT_SIZE:-512}
+      DETECTOR_CONFIDENCE_THRESHOLD: ${DETECTOR_CONFIDENCE_THRESHOLD:-0.25}
+      DETECTOR_IOU_THRESHOLD: ${DETECTOR_IOU_THRESHOLD:-0.45}
+      MAX_DETECTIONS: ${MAX_DETECTIONS:-50}
+      MODEL_CLASSES: ${MODEL_CLASSES:-}
+      ANALYSIS_MAX_DIMENSION: ${ANALYSIS_MAX_DIMENSION:-1024}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-12}
+      MAX_IMAGE_DIMENSION: ${MAX_IMAGE_DIMENSION:-4096}
+      ONNX_INTRA_OP_THREADS: ${ONNX_INTRA_OP_THREADS:-2}
+      SCORE_TEMPERATURE: ${SCORE_TEMPERATURE:-1.0}
+      ALLOW_HEURISTIC_FALLBACK: ${ALLOW_HEURISTIC_FALLBACK:-true}
+      WARMUP_ON_STARTUP: ${WARMUP_ON_STARTUP:-true}
       AUTO_ACCEPT_THRESHOLD: ${CONFIDENCE_THRESHOLD_AUTO_ACCEPT:-0.85}
       MANUAL_REVIEW_THRESHOLD: ${CONFIDENCE_THRESHOLD_MANUAL_REVIEW:-0.60}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3002,http://localhost:3001}
@@ -68,12 +84,12 @@ services:
           "CMD",
           "python",
           "-c",
-          "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)",
+          "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).status == 200 else 1)",
         ]
       interval: 15s
-      timeout: 5s
+      timeout: 8s
       retries: 10
-      start_period: 15s
+      start_period: 30s
     networks:
       - yaya-net
 

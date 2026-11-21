@@ -8,8 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# ONNX Runtime / OpenCV için gerekli sistem kütüphaneleri Faz 2'de eklenecek:
-#   apt-get install -y --no-install-recommends libgomp1 libgl1 libglib2.0-0
+# ONNX Runtime CPU, OpenMP çalışma zamanına ihtiyaç duyar.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system app && adduser --system --ingroup app app
 
 COPY requirements.txt ./

@@ -31,6 +31,10 @@ export function notFound(message = 'Kayıt bulunamadı'): AppError {
   return new AppError(404, 'NOT_FOUND', message);
 }
 
+export function conflict(message: string, code = 'CONFLICT'): AppError {
+  return new AppError(409, code, message);
+}
+
 export function unsupportedMedia(message: string): AppError {
   return new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', message);
 }

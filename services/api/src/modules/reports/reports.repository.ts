@@ -155,6 +155,16 @@ export class PgReportsRepository implements ReportsRepository {
       conditions.push(`r.violation_type = $${params.length}::violation_type`);
     }
 
+    if (query.minScore !== undefined) {
+      params.push(query.minScore);
+      conditions.push(`r.confidence_score >= $${params.length}`);
+    }
+
+    if (query.maxScore !== undefined) {
+      params.push(query.maxScore);
+      conditions.push(`r.confidence_score <= $${params.length}`);
+    }
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await this.pool.query<{ total: string }>(
@@ -171,7 +181,9 @@ export class PgReportsRepository implements ReportsRepository {
          FROM reports r
          LEFT JOIN violation_type_catalog c ON c.code = r.violation_type
          ${where}
-        ORDER BY r.captured_at DESC, r.id DESC
+        ORDER BY ${query.sort === 'score'
+          ? 'r.confidence_score DESC NULLS LAST, r.captured_at DESC, r.id DESC'
+          : 'r.captured_at DESC, r.id DESC'}
         LIMIT $${limitParam} OFFSET $${offsetParam}`,
       [...params, query.limit, query.offset],
     );

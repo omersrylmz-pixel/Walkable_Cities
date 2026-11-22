@@ -1,6 +1,8 @@
 import type { AppEnv } from './config/env.js';
 import { createPool } from './db/pool.js';
 import type { Pool } from './db/pool.js';
+import { PgDecisionsRepository } from './modules/decisions/decisions.repository.js';
+import { DecisionsService } from './modules/decisions/decisions.service.js';
 import { PgReportsRepository } from './modules/reports/reports.repository.js';
 import { ReportsService } from './modules/reports/reports.service.js';
 import { createStorage } from './storage/index.js';
@@ -15,6 +17,7 @@ export interface AppContext {
   db: Pool;
   storage: StorageAdapter;
   reports: ReportsService;
+  decisions: DecisionsService;
 }
 
 export function createContext(env: AppEnv): AppContext {
@@ -30,6 +33,10 @@ export function createContext(env: AppEnv): AppContext {
       repository,
       storage,
       maxUploadBytes: env.MAX_UPLOAD_MB * 1024 * 1024,
+    }),
+    decisions: new DecisionsService({
+      repository: new PgDecisionsRepository(db),
+      reportsRepository: repository,
     }),
   };
 }

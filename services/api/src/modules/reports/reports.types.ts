@@ -115,9 +115,16 @@ export interface NearDuplicateMatch {
   ageSeconds: number;
 }
 
+export const LIST_SORTS = ['recent', 'score'] as const;
+export type ListSort = (typeof LIST_SORTS)[number];
+
 export interface ListReportsQuery {
   status?: ReportStatus;
   violationType?: ViolationType;
+  /** `score`: güven skoru azalan (inceleme kuyruğu); `recent`: yakalanma zamanı azalan. */
+  sort?: ListSort;
+  minScore?: number;
+  maxScore?: number;
   limit: number;
   offset: number;
 }

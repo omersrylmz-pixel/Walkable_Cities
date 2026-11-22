@@ -5,6 +5,8 @@ import { buildApp } from '../src/app.js';
 import { loadEnv } from '../src/config/env.js';
 import type { AppContext } from '../src/context.js';
 import type { Pool } from '../src/db/pool.js';
+import type { DecisionsRepository } from '../src/modules/decisions/decisions.repository.js';
+import { DecisionsService } from '../src/modules/decisions/decisions.service.js';
 import { ReportsService } from '../src/modules/reports/reports.service.js';
 import type { ReportsRepository } from '../src/modules/reports/reports.repository.js';
 import type { StorageAdapter } from '../src/storage/types.js';
@@ -46,11 +48,24 @@ function makeContext(): AppContext {
 
   const db = { end: vi.fn(async () => undefined), query: vi.fn() } as unknown as Pool;
 
+  const decisionsRepository = {
+    findState: vi.fn(async () => null),
+    applyDecision: vi.fn(),
+    listAudit: vi.fn(async () => ({ items: [], total: 0, limit: 50, offset: 0 })),
+  } as unknown as DecisionsRepository;
+
+  const reports = new ReportsService({ repository, storage, maxUploadBytes: 1024 });
+
   return {
     env,
     db,
     storage,
-    reports: new ReportsService({ repository, storage, maxUploadBytes: 1024 }),
+    reports,
+    decisions: new DecisionsService({
+      repository: decisionsRepository,
+      reportsRepository: repository,
+      now: () => new Date('2026-03-15T12:00:00.000Z'),
+    }),
   };
 }
 

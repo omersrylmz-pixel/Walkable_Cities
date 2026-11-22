@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import { badRequest, unprocessable, unsupportedMedia } from '../../shared/errors.js';
-import { REPORT_STATUSES, VIOLATION_TYPES } from './reports.types.js';
+import { LIST_SORTS, REPORT_STATUSES, VIOLATION_TYPES } from './reports.types.js';
 import type { ReportsService } from './reports.service.js';
 
 export interface ReportsRoutesOptions {
@@ -14,6 +14,9 @@ const MAX_METADATA_BYTES = 64 * 1024;
 const listQuerySchema = z.object({
   status: z.enum(REPORT_STATUSES).optional(),
   violationType: z.enum(VIOLATION_TYPES).optional(),
+  sort: z.enum(LIST_SORTS).default('recent'),
+  minScore: z.coerce.number().min(0).max(1).optional(),
+  maxScore: z.coerce.number().min(0).max(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });

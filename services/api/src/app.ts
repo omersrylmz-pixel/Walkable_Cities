@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import { loadEnv, parseCorsOrigins, type AppEnv } from './config/env.js';
 import { createContext, type AppContext } from './context.js';
+import { decisionsRoutes } from './modules/decisions/decisions.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { reportsRoutes } from './modules/reports/reports.routes.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
@@ -60,6 +61,20 @@ export async function buildApp(
 
   await app.register(healthRoutes, { prefix: '/health', env, db: context.db, storage: context.storage });
   await app.register(reportsRoutes, { prefix: '/v1', service: context.reports });
+  await app.register(decisionsRoutes, { prefix: '/v1', service: context.decisions });
+
+  // Karar eşiklerini açılışta veritabanından oku. DB geçici olarak erişilemezse
+  // süreç ayakta kalır; varsayılan eşikler kullanılır ve /health/ready bunu bildirir.
+  app.addHook('onReady', async () => {
+    try {
+      await context.decisions.initialize();
+    } catch (error) {
+      app.log.warn(
+        { err: error },
+        'Karar eşikleri veritabanından okunamadı; varsayılan eşikler kullanılıyor',
+      );
+    }
+  });
 
   app.get('/', async () => ({
     name: 'yaya-alani-ihlal-api',
@@ -67,6 +82,9 @@ export async function buildApp(
     health: '/health',
     ready: '/health/ready',
     reports: '/v1/reports',
+    reviewQueue: '/v1/review-queue',
+    decision: '/v1/reports/:id/decision',
+    audit: '/v1/reports/:id/audit',
     meta: '/v1/meta',
   }));
 

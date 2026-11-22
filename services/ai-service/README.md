@@ -12,9 +12,29 @@ Nesne tespiti (YOLO26 / RF-DETR) ve kaldırım / yaya geçidi segmentasyonu ile 
 | `GET` | `/health/ready` | Model hazırlığı; hazır değilse `503` |
 | `GET` | `/v1/models` | Yüklü model sürümleri, sınıf şeması, eşikler |
 | `POST` | `/v1/analyze` | Görsel -> tespitler + segmentasyon + overlap + skor + karar |
+| `POST` | `/v1/anonymize` | KVKK: yüz/plaka bulanıklaştırma, EXIF'siz PNG döndürür |
 | `GET` | `/docs` | OpenAPI (Swagger UI) |
 
 Hata yanıtları RFC 7807 `application/problem+json` biçimindedir (`413`, `415`, `422`, `503`).
+
+## KVKK Anonimleştirme
+
+`POST /v1/anonymize` yüklenen görseldeki yüz ve plaka bölgelerini Gauss ile
+bulanıklaştırır, çıktıyı EXIF/GPS içermeyen PNG olarak döndürür. Tespit sayıları
+`X-Faces-Blurred` ve `X-Plates-Blurred` başlıklarında, kullanılan hat
+`X-Anonymizer-Backend` başlığında bildirilir. Orijinal görsel çağıran servis
+tarafından erişimi kısıtlı olarak ayrıca saklanır.
+
+```bash
+curl -X POST http://localhost:8001/v1/anonymize \
+  -F "image=@sokak.jpg;type=image/jpeg" \
+  -o anonim.png -D -
+```
+
+> Yüz/plaka tespiti için eğitilmiş model henüz yoktur; geliştirme/CI için cilt
+> tonu ve parlak düz bölge sezgilerine dayanan deterministik hat kullanılır.
+> Üretimde doğrulanmış ONNX modeline geçilene kadar
+> `ALLOW_HEURISTIC_ANONYMIZATION=false` ile uç kapatılabilir (503 döner).
 
 ## Çıkarım Hattı
 

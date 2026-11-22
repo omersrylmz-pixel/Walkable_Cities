@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     allow_heuristic_fallback: bool = True
     warmup_on_startup: bool = True
 
+    # KVKK: yüz/plaka anonimleştirme. Gerçek model yokken sezgisel hat
+    # kullanılabilir; üretimde false yapıp doğrulanmış model bağlayın.
+    allow_heuristic_anonymization: bool = True
+
     # Karar mekanizması eşikleri
     auto_accept_threshold: float = 0.85
     manual_review_threshold: float = 0.60

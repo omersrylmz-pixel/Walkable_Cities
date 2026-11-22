@@ -1,13 +1,15 @@
 """Yaya Alanı İhlal Tespiti — FastAPI giriş noktası.
 
-Faz 2 kapsamı:
-  - `POST /v1/analyze`  : görsel -> tespitler, segmentasyon, overlap, skor, karar
-  - `GET /v1/models`    : yüklü model sürümleri ve çıkarım ayarları
+Faz 2/3 kapsamı:
+  - `POST /v1/analyze`   : görsel -> tespitler, segmentasyon, overlap, skor, karar
+  - `POST /v1/anonymize` : KVKK için yüz/plaka bulanıklaştırma (EXIF'siz PNG)
+  - `GET /v1/models`     : yüklü model sürümleri ve çıkarım ayarları
   - ONNX Runtime oturum yönetimi (YOLO26 / RF-DETR + segmentasyon)
   - Model warm-up, sürüm raporu ve gecikme ölçümü
 
 Model ağırlıkları yoksa geliştirme/CI için deterministik yedek hat devreye
 girer (`backend: "heuristic"`); `ALLOW_HEURISTIC_FALLBACK=false` ile kapatılır.
+Anonimleştirmede karşılık gelen anahtar `ALLOW_HEURISTIC_ANONYMIZATION`'dır.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analyze_router, health_router, models_router
+from app.api import analyze_router, health_router, models_router, privacy_router
 from app.api.errors import problem_response, register_exception_handlers
 from app.core.config import Settings, get_settings
 from app.services.analyzer import Analyzer
@@ -94,7 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.middleware("http")
     async def reject_oversized_uploads(request: Request, call_next):  # type: ignore[no-untyped-def]
         """Multipart ayrıştırmasından önce `Content-Length` ile erken ret."""
-        if request.url.path == "/v1/analyze":
+        if request.url.path in ("/v1/analyze", "/v1/anonymize"):
             content_length = request.headers.get("content-length")
 
             if content_length:
@@ -120,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(analyze_router)
     app.include_router(models_router)
+    app.include_router(privacy_router)
 
     @app.get("/", tags=["meta"])
     async def root(request: Request) -> dict[str, str]:
@@ -132,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "health": "/health",
             "ready": "/health/ready",
             "analyze": "/v1/analyze",
+            "anonymize": "/v1/anonymize",
             "models": "/v1/models",
         }
 

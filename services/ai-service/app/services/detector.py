@@ -61,8 +61,16 @@ class OnnxDetector:
         if raw.ndim != 2:
             raise ValueError(f"Beklenmeyen YOLO çıktı boyutu: {raw.shape}")
 
-        # [4+C, N] -> [N, 4+C]
-        if raw.shape[0] < raw.shape[1] and raw.shape[0] <= 4 + 512:
+        # [4+C, N] -> [N, 4+C]. Kanal sayısı bilinen sınıf sayısıyla
+        # eşleşiyorsa boyut karşılaştırmasına güvenmek yerine doğrudan
+        # transpoze ederiz; az sayıda tespit içeren çıktılarda (N < 4+C)
+        # boyut sezgisi yanılabilir.
+        channels = 4 + len(self.class_names)
+        if raw.shape[0] == channels and raw.shape[1] != channels:
+            raw = raw.T
+        elif raw.shape[1] == channels and raw.shape[0] != channels:
+            pass
+        elif raw.shape[0] < raw.shape[1] and raw.shape[0] <= 4 + 512:
             raw = raw.T
 
         if raw.shape[1] < 5:

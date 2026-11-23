@@ -80,3 +80,17 @@ curl http://localhost:3001/health/ready
 | `npm run build` | TypeScript derlemesi (`dist/`) |
 | `npm run start` | Derlenmiş sunucuyu çalıştırma |
 | `npm run typecheck` | Tip kontrolü (çıktı üretmez) |
+| `npm test` | Vitest birim/entegrasyon testleri |
+| `npm run migrate:up` | Bekleyen SQL migrasyonlarını uygulama |
+| `npm run retention:purge` | KVKK saklama süresi dolan görselleri silme (geliştirme) |
+| `npm run retention:purge:prod` | Aynı işi derlenmiş kodla çalıştırma |
+
+### Saklama süresi temizliği
+
+`reports.retention_expires_at` süresi dolan görseller, önce depolama nesnesi
+sonra DB kaydı silinerek temizlenir. Depolama silme başarısız olursa DB kaydı
+korunur ve sonraki çalıştırmada yeniden denenir. Konteynerde günlük çalıştırma:
+
+```bash
+docker compose exec -T api node dist/scripts/purge-retention.js
+```

@@ -52,6 +52,10 @@ const envSchema = z.object({
 
   /** KVKK saklama süresi (gün); `retention_expires_at` bu süre sonrasına yazılır. */
   RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(730),
+  /** Temizlik işinin tek seferde işleyeceği görsel sayısı. */
+  RETENTION_PURGE_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(200),
+  /** Temizlik işinin tek çalıştırmada işleyeceği en fazla parti sayısı. */
+  RETENTION_PURGE_MAX_BATCHES: z.coerce.number().int().min(1).max(1000).default(50),
 
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
   STORAGE_LOCAL_DIR: z.string().min(1).default('./.storage'),

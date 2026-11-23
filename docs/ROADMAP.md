@@ -85,7 +85,7 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 - [x] Konum + zaman + hash tabanlı mükerrer skorlama
 - [x] Karar servisi: DB eşiklerini açılışta okuma, audit log yazımı
 - [x] `GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`, `GET /v1/reports/:id/audit`
-- [ ] Saklama süresi temizlik işi
+- [x] Saklama süresi temizlik işi (`npm run retention:purge`)
 - [ ] Entegrasyon testleri (testcontainers veya compose tabanlı)
 
 **Kabul kriterleri**

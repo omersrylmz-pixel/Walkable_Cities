@@ -86,7 +86,7 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 - [x] Karar servisi: DB eşiklerini açılışta okuma, audit log yazımı
 - [x] `GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`, `GET /v1/reports/:id/audit`
 - [x] Saklama süresi temizlik işi (`npm run retention:purge`)
-- [ ] Entegrasyon testleri (testcontainers veya compose tabanlı)
+- [x] Entegrasyon testleri (compose tabanlı): `npm run test:integration --workspace @yaya/api`
 
 **Kabul kriterleri**
 - Yüz ve plaka içeren test görsellerinde ilgili bölgeler bulanık

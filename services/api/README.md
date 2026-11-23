@@ -80,7 +80,8 @@ curl http://localhost:3001/health/ready
 | `npm run build` | TypeScript derlemesi (`dist/`) |
 | `npm run start` | Derlenmiş sunucuyu çalıştırma |
 | `npm run typecheck` | Tip kontrolü (çıktı üretmez) |
-| `npm test` | Vitest birim/entegrasyon testleri |
+| `npm test` | Vitest birim testleri (Docker gerektirmez) |
+| `npm run test:integration` | Compose yığınına karşı uçtan uca entegrasyon testleri |
 | `npm run migrate:up` | Bekleyen SQL migrasyonlarını uygulama |
 | `npm run retention:purge` | KVKK saklama süresi dolan görselleri silme (geliştirme) |
 | `npm run retention:purge:prod` | Aynı işi derlenmiş kodla çalıştırma |
@@ -94,3 +95,39 @@ korunur ve sonraki çalıştırmada yeniden denenir. Konteynerde günlük çalı
 ```bash
 docker compose exec -T api node dist/scripts/purge-retention.js
 ```
+
+## Entegrasyon Testleri
+
+Compose tabanlı entegrasyon testleri, çalışan yığına gerçek HTTP ve SQL
+çağrıları yapar:
+
+```bash
+# depo kökünden
+npm run stack:up
+
+# API workspace'inde
+npm run test:integration --workspace @yaya/api
+# veya kök kısayolu
+npm run api:test:integration
+```
+
+Kapsam:
+
+| Dosya | Senaryo |
+| --- | --- |
+| `anonymization-failure.test.ts` | AI durdurulur → `503 ANONYMIZATION_FAILED`, DB'ye kayıt yazılmaz, AI yeniden başlatılır |
+| `report-privacy.test.ts` | EXIF'li yükleme, GPS/zaman `match`, orijinal + anonim PNG, EXIF'siz çıktı, idempotency ve mükerrer işareti |
+| `decisions.test.ts` | İnceleme kuyruğu, manuel karar, denetim izi, `override` olmadan `409` |
+| `retention.test.ts` | Süresi dolan görsellerin depolama + DB temizliği ve `404` davranışı |
+
+Notlar:
+
+- Testler oluşturdukları kayıtları ve depolama nesnelerini temizler; yine de
+  geliştirme veritabanında çalıştırılmalıdır.
+- `anonymization-failure` testi AI konteynerini geçici olarak durdurur.
+  Paylaşılan bir ortamda `INTEGRATION_SKIP_DISRUPTIVE=1` ile atlanabilir.
+- Varsayılan adresler `API_PORT` / `AI_PORT` üzerinden kök `.env`'den okunur.
+  Farklı bir hedef için `INTEGRATION_API_URL`, `INTEGRATION_AI_URL` veya
+  `INTEGRATION_DATABASE_URL` kullanılabilir.
+- Normal `npm test` bu testleri çalıştırmaz; ayrı bir yapılandırma
+  (`vitest.integration.config.ts`) ve sıralı yürütme kullanılır.

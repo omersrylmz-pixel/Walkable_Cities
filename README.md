@@ -194,8 +194,9 @@ docker compose exec postgres psql -U yaya -d yaya -c "\dt"
 
 ```bash
 npm install
-npm run api:dev          # kök .env otomatik yüklenir
-npm run api:test         # Vitest
+npm run api:dev               # kök .env otomatik yüklenir
+npm run api:test              # Vitest birim testleri
+npm run api:test:integration  # Compose tabanlı uçtan uca testler
 ```
 
 Migrasyonlar:
@@ -223,6 +224,22 @@ npm run mobile:android      # Android emülatöründe aç
 - Fiziksel cihazda `.env` içinde `EXPO_PUBLIC_API_URL=http://<bilgisayar-LAN-IP>:3001` ayarlanmalıdır.
 - Uygulama yalnızca **canlı kamera** ile çekim yapar; galeri erişimi yoktur.
 - Çevrimdışıyken çekilen ihbarlar cihazda kuyruğa alınır ve bağlantı gelince idempotent olarak gönderilir.
+
+### 7) Entegrasyon testlerini çalıştırın
+
+Yığın ayaktayken gerçek HTTP ve PostgreSQL üzerinden uçtan uca KVKK + karar
+hattı testleri:
+
+```bash
+npm run api:test:integration
+```
+
+Kapsam: EXIF'li yükleme ve EXIF'siz anonim PNG, idempotency ve mükerrer
+işareti, inceleme kuyruğu → manuel karar → denetim izi → `409`, AI kapalıyken
+`503 ANONYMIZATION_FAILED`, saklama süresi temizliği. Testler oluşturdukları
+kayıtları temizler. AI'ı geçici olarak durduran senaryo paylaşılan ortamlarda
+`INTEGRATION_SKIP_DISRUPTIVE=1` ile atlanabilir. Ayrıntı:
+[`services/api/README.md`](services/api/README.md).
 
 ---
 
@@ -345,7 +362,7 @@ Tüm alanlar ve kısıtlar için [`infra/init.sql`](infra/init.sql).
 | 0 | Monorepo iskeleti, README, .gitignore, docker-compose, PostGIS/H3 şeması | ✅ |
 | 1 | Expo mobil iskeleti, kamera/GPS/zaman doğrulama, API iskeleti ve migrasyonlar | ✅ |
 | 2 | AI servisi: ONNX Runtime, tespit/segmentasyon hattı, overlap, skor füzyonu, karar ve testler | ✅ (ağırlık/eğitim bekliyor) |
-| 3 | KVKK anonimleştirme, mükerrer kontrol, karar hattı ve testler | ⏳ |
+| 3 | KVKK anonimleştirme, mükerrer kontrol, karar hattı ve entegrasyon testleri | ✅ (PII modeli heuristic) |
 | 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ⏳ |
 | 5 | H3 agregasyon, DBSCAN / Getis-Ord Gi* sıcak nokta analizi | ⏳ |
 | 6 | Uçtan uca testler, CI/CD, gözlemlenebilirlik | ⏳ |

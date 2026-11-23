@@ -16,6 +16,7 @@
     "api:build": "npm run build --workspace @yaya/api",
     "api:start": "npm run start --workspace @yaya/api",
     "api:test": "npm test --workspace @yaya/api",
+    "api:test:integration": "npm run test:integration --workspace @yaya/api",
     "mobile:start": "npm run start --workspace @yaya/mobile",
     "mobile:android": "npm run android --workspace @yaya/mobile",
     "mobile:ios": "npm run ios --workspace @yaya/mobile",

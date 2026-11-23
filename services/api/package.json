@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "retention:purge": "tsx src/scripts/purge-retention.ts",
     "retention:purge:prod": "node dist/scripts/purge-retention.js",
     "migrate:up": "node-pg-migrate up --envPath ../../.env",

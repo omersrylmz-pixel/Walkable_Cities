@@ -196,7 +196,7 @@ export class PgReportsRepository implements ReportsRepository {
     );
 
     return {
-      items: rows.map((row) => this.toSummary(row)),
+      items: rows.map((row) => this.toSummary(row, Number(row.image_count ?? 0))),
       total: Number(countResult.rows[0]?.total ?? 0),
       limit: query.limit,
       offset: query.offset,

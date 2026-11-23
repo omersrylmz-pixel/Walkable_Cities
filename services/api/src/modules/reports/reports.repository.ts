@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 
+import type { ReportIntegrity } from '../../shared/integrity.js';
 import type {
   DecisionOutcome,
   DecisionThresholds,
@@ -54,6 +55,9 @@ const REPORT_COLUMNS = `
   r.h3_resolution,
   r.duplicate_of,
   r.duplicate_score,
+  r.anonymized_at,
+  r.retention_expires_at,
+  r.integrity,
   r.created_at,
   r.updated_at,
   ST_Y(r.location) AS latitude,
@@ -78,6 +82,9 @@ interface ReportRow {
   h3_resolution: number;
   duplicate_of: string | null;
   duplicate_score: string | null;
+  anonymized_at: Date | null;
+  retention_expires_at: Date;
+  integrity: unknown;
   latitude: number;
   longitude: number;
   created_at: Date;
@@ -206,10 +213,11 @@ export class PgReportsRepository implements ReportsRepository {
         `INSERT INTO reports (
             client_report_id, violation_type, captured_at, location,
             gps_accuracy_m, gps_source, description, severity,
-            duplicate_of, duplicate_score, device_info
+            duplicate_of, duplicate_score, device_info,
+            anonymized_at, retention_expires_at, integrity
          ) VALUES (
             $1, $2::violation_type, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326),
-            $6, $7, $8, $9, $10, $11, $12::jsonb
+            $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15::jsonb
          )
          RETURNING id`,
         [
@@ -225,6 +233,9 @@ export class PgReportsRepository implements ReportsRepository {
           input.duplicateOf,
           input.duplicateScore,
           input.deviceInfo,
+          input.anonymizedAt,
+          input.retentionExpiresAt,
+          input.integrity,
         ],
       );
 
@@ -233,12 +244,31 @@ export class PgReportsRepository implements ReportsRepository {
         throw new Error('İhbar kaydı oluşturulamadı');
       }
 
-      await client.query(
-        `INSERT INTO report_images (
-            report_id, kind, storage_path, mime_type, byte_size, sha256
-         ) VALUES ($1, 'original', $2, $3, $4, $5)`,
-        [reportId, input.image.storagePath, input.image.mimeType, input.image.byteSize, input.image.sha256],
-      );
+      for (const image of input.images) {
+        await client.query(
+          `INSERT INTO report_images (
+              report_id, kind, storage_path, mime_type, byte_size, sha256,
+              width, height, blur_applied, faces_blurred, plates_blurred, exif_removed
+           ) VALUES (
+              $1, $2::media_kind, $3, $4, $5, $6,
+              $7, $8, $9, $10, $11, $12
+           )`,
+          [
+            reportId,
+            image.kind,
+            image.storagePath,
+            image.mimeType,
+            image.byteSize,
+            image.sha256,
+            image.width,
+            image.height,
+            image.blurApplied,
+            image.facesBlurred,
+            image.platesBlurred,
+            image.exifRemoved,
+          ],
+        );
+      }
 
       await client.query('COMMIT');
 
@@ -412,10 +442,21 @@ export class PgReportsRepository implements ReportsRepository {
       },
       duplicateOf: row.duplicate_of,
       duplicateScore: row.duplicate_score === null ? null : Number(row.duplicate_score),
+      anonymizedAt: row.anonymized_at?.toISOString() ?? null,
+      retentionExpiresAt: row.retention_expires_at.toISOString(),
+      integrity: asReportIntegrity(row.integrity),
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
     };
   }
+}
+
+function asReportIntegrity(value: unknown): ReportIntegrity | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  // Eski kayıtlarda kolon boş nesne olabilir; yalnızca doğrulanmış kayıtları döndür.
+  return 'checkedAt' in value ? (value as ReportIntegrity) : null;
 }
 
 function mapImage(row: ImageRow): ReportImageDto {

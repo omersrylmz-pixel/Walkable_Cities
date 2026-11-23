@@ -80,11 +80,11 @@ Her faz küçük, test edilebilir ve commit'lenebilir adımlardan oluşur. Bir f
 
 **Hedef:** Üretime yakın veri güvenliği ve karar doğruluğu.
 
-- [ ] Yüz/plaka tespiti + Gauss bulanıklaştırma (orijinal ayrı saklanır)
-- [ ] EXIF temizleme ve GPS/zaman çapraz doğrulama
-- [ ] Konum + zaman + hash tabanlı mükerrer skorlama
-- [ ] Karar servisi: DB eşiklerini açılışta okuma, audit log yazımı
-- [ ] `GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`
+- [x] Yüz/plaka tespiti + Gauss bulanıklaştırma (orijinal ayrı saklanır; heuristic hat, gerçek model bekliyor)
+- [x] EXIF temizleme ve GPS/zaman çapraz doğrulama
+- [x] Konum + zaman + hash tabanlı mükerrer skorlama
+- [x] Karar servisi: DB eşiklerini açılışta okuma, audit log yazımı
+- [x] `GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`, `GET /v1/reports/:id/audit`
 - [ ] Saklama süresi temizlik işi
 - [ ] Entegrasyon testleri (testcontainers veya compose tabanlı)
 

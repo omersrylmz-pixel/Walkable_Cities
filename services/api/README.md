@@ -7,19 +7,48 @@ Yaya alanı ihlal platformunun REST API katmanı. Faz 0 itibarıyla sağlık uç
 | Faz | Yetenek |
 | --- | --- |
 | 1 | `POST /v1/reports` (multipart), şema doğrulama, idempotency (`client_report_id`), sağlık uçları |
-| 3 | KVKK anonimleştirme (yüz/plaka), SHA-256 mükerrer kontrolü, karar hattı |
-| 3 | Manuel inceleme uçları (`GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`) |
+| 3 | KVKK anonimleştirme (yüz/plaka), EXIF GPS/zaman çapraz doğrulaması, SHA-256 mükerrer kontrolü |
+| 3 | Manuel inceleme uçları (`GET /v1/review-queue`, `PATCH /v1/reports/:id/decision`, `GET /v1/reports/:id/audit`) |
 | 5 | H3 agregasyon, sıcak nokta analizi tetikleme ve sonuç uçları |
+
+## KVKK Görsel Hattı
+
+`POST /v1/reports` akışı:
+
+```text
+multipart (report JSON + image)
+  └─> tür/boyut/SHA-256 doğrulaması
+      └─> EXIF oku -> GPS (±100 m) ve zaman (±300 sn) çapraz doğrulaması
+          └─> AI: POST /v1/anonymize (yüz/plaka Gauss, EXIF'siz PNG)
+              └─> depolama: original (erişimi kısıtlı) + anonymized
+                  └─> tek transaction: reports (+integrity) ve report_images
+```
+
+- `ANONYMIZATION_REQUIRED=true` iken anonimleştirme başarısızsa istek
+  `503 ANONYMIZATION_FAILED` ile reddedilir; anonimlenmemiş kayıt yazılmaz.
+- EXIF sonuçları `reports.integrity` jsonb kolonunda saklanır:
+  `exif`, `checks.gps`, `checks.capturedAt`, `anonymization`, `checkedAt`.
+- EXIF zamanı saat dilimi taşımadığı için istemcinin `capturedAt` ofsetiyle
+  hesaplanan duvar saati karşılaştırılır.
+- `retention_expires_at`, `RETENTION_DAYS` (varsayılan 730 gün) sonrasına yazılır.
+- Orijinal görsel yalnızca moderasyon/denetim için tutulur; yayınlanan görsel
+  `kind='anonymized'` kaydıdır.
 
 ## Yapı
 
 ```text
 src/
+├── clients/
+│   └── privacy-client.ts   # AI /v1/anonymize istemcisi
 ├── config/
 │   └── env.ts              # zod ile ortam değişkeni doğrulama
 ├── modules/
-│   └── health/
-│       └── health.routes.ts
+│   ├── decisions/          # inceleme kuyruğu, manuel karar, audit
+│   ├── health/
+│   └── reports/            # ihbar CRUD, mükerrerlik, EXIF + KVKK akışı
+├── shared/
+│   ├── image.ts            # tür tespiti + SHA-256
+│   └── integrity.ts        # EXIF okuma ve GPS/zaman karşılaştırması
 ├── app.ts                  # Fastify uygulaması (yan etkisiz fabrika)
 └── server.ts               # giriş noktası (dinleme + graceful shutdown)
 ```

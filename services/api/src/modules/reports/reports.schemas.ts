@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { unprocessable } from '../../shared/errors.js';
+import { parseCapturedAtOffsetMinutes } from '../../shared/integrity.js';
 import { GPS_SOURCES, VIOLATION_TYPES } from './reports.types.js';
 
 /** Sunucu tarafı GPS doğruluk üst sınırı (metre). */
@@ -34,7 +35,14 @@ const metadataBaseSchema = z.object({
   severity: z.number().int().min(1).max(5).optional(),
 });
 
-export type ReportMetadata = z.infer<typeof metadataBaseSchema>;
+export type ReportMetadata = z.infer<typeof metadataBaseSchema> & {
+  /**
+   * İstemcinin `capturedAt` alanında bildirdiği UTC ofseti (dakika).
+   * EXIF zamanı saat dilimi taşımadığı için duvar saati karşılaştırmasında
+   * kullanılır (`+03:00` -> 180, `Z` -> 0).
+   */
+  capturedAtOffsetMinutes: number;
+};
 
 /**
  * İstemciden gelen ihbar metadatasını doğrular ve normalize eder.
@@ -91,5 +99,8 @@ export function parseReportMetadata(raw: unknown, now: Date = new Date()): Repor
     );
   }
 
-  return result.data;
+  return {
+    ...result.data,
+    capturedAtOffsetMinutes: parseCapturedAtOffsetMinutes(result.data.capturedAt),
+  };
 }

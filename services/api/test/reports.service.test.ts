@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Anonymizer } from '../src/clients/privacy-client.js';
 import type { ReportsRepository } from '../src/modules/reports/reports.repository.js';
 import { ReportsService } from '../src/modules/reports/reports.service.js';
 import type { ReportDto } from '../src/modules/reports/reports.types.js';
+import { EXIF_GPS_TOLERANCE_M } from '../src/shared/integrity.js';
 import type { StorageAdapter } from '../src/storage/types.js';
 
 const NOW = new Date('2026-03-15T12:00:00.000Z');
@@ -35,6 +39,9 @@ function makeReport(overrides: Partial<ReportDto> = {}): ReportDto {
     h3: { cell: null, resolution: 9 },
     duplicateOf: null,
     duplicateScore: null,
+    anonymizedAt: null,
+    retentionExpiresAt: '2028-03-14T12:00:00.000Z',
+    integrity: null,
     images: [],
     createdAt: '2026-03-15T12:00:00.000Z',
     updatedAt: '2026-03-15T12:00:00.000Z',
@@ -90,13 +97,43 @@ function makeFakes(overrides: {
   return { repo, storage: storage as unknown as Fakes['storage'] };
 }
 
-function makeService(fakes: Fakes, maxUploadBytes = 12 * 1024 * 1024): ReportsService {
+function makeService(
+  fakes: Fakes,
+  maxUploadBytes = 12 * 1024 * 1024,
+  options: {
+    anonymizer?: Anonymizer;
+    anonymizationRequired?: boolean;
+    retentionDays?: number;
+  } = {},
+): ReportsService {
   return new ReportsService({
     repository: fakes.repo,
     storage: fakes.storage,
     maxUploadBytes,
     now: () => NOW,
+    ...options,
   });
+}
+
+function makeAnonymizer(
+  result: Awaited<ReturnType<Anonymizer['anonymize']>> | Error = {
+    body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    mimeType: 'image/png',
+    backend: 'heuristic',
+    facesBlurred: 1,
+    platesBlurred: 2,
+    width: 320,
+    height: 240,
+  },
+): Anonymizer {
+  return {
+    anonymize: vi.fn(async () => {
+      if (result instanceof Error) {
+        throw result;
+      }
+      return result;
+    }),
+  };
 }
 
 function validInput(buffer: Buffer = jpegBuffer()): {
@@ -130,12 +167,29 @@ describe('ReportsService.createReport', () => {
     const createArg = vi.mocked(fakes.repo.create).mock.calls[0]?.[0] as {
       duplicateOf: string | null;
       duplicateScore: number | null;
-      image: { sha256: Buffer; mimeType: string };
+      images: { kind: string; sha256: Buffer; mimeType: string; blurApplied: boolean }[];
+      integrity: {
+        exif: { present: boolean };
+        anonymization: { status: string };
+        checkedAt: string;
+      };
+      anonymizedAt: Date | null;
+      retentionExpiresAt: Date;
     };
     expect(createArg.duplicateOf).toBeNull();
     expect(createArg.duplicateScore).toBeNull();
-    expect(createArg.image.mimeType).toBe('image/jpeg');
-    expect(createArg.image.sha256).toHaveLength(32);
+    expect(createArg.images).toHaveLength(1);
+    expect(createArg.images[0]).toMatchObject({
+      kind: 'original',
+      mimeType: 'image/jpeg',
+      blurApplied: false,
+    });
+    expect(createArg.images[0]?.sha256).toHaveLength(32);
+    expect(createArg.integrity.exif.present).toBe(false);
+    expect(createArg.integrity.anonymization.status).toBe('skipped');
+    expect(createArg.integrity.checkedAt).toBe(NOW.toISOString());
+    expect(createArg.anonymizedAt).toBeNull();
+    expect(createArg.retentionExpiresAt.toISOString()).toBe('2028-03-14T12:00:00.000Z');
   });
 
   it('aynı clientReportId tekrar geldiğinde idempotent yanıt döner', async () => {
@@ -277,6 +331,163 @@ describe('ReportsService.createReport', () => {
     expect(outcome.replayed).toBe(true);
     expect(outcome.report.id).toBe(raced.id);
     expect(fakes.storage.delete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ReportsService — KVKK ve EXIF', () => {
+  let fakes: Fakes;
+
+  beforeEach(() => {
+    fakes = makeFakes();
+  });
+
+  it('orijinal ve anonim görseli birlikte kaydeder', async () => {
+    const anonymizer = makeAnonymizer();
+    const service = makeService(fakes, undefined, { anonymizer });
+
+    await service.createReport(validInput());
+
+    expect(fakes.storage.put).toHaveBeenCalledTimes(2);
+    const keys = fakes.storage.put.mock.calls.map(
+      (call) => (call[0] as { key: string; contentType: string }).key,
+    );
+    expect(keys[0]).toMatch(/\.jpg$/);
+    expect(keys[1]).toMatch(/\.png$/);
+
+    const createArg = vi.mocked(fakes.repo.create).mock.calls[0]?.[0] as {
+      images: {
+        kind: string;
+        mimeType: string;
+        blurApplied: boolean;
+        facesBlurred: number;
+        platesBlurred: number;
+        exifRemoved: boolean;
+        width: number | null;
+      }[];
+      integrity: { anonymization: { status: string; backend: string | null } };
+      anonymizedAt: Date | null;
+    };
+
+    expect(createArg.images).toHaveLength(2);
+    expect(createArg.images[0]).toMatchObject({ kind: 'original', mimeType: 'image/jpeg' });
+    expect(createArg.images[1]).toMatchObject({
+      kind: 'anonymized',
+      mimeType: 'image/png',
+      blurApplied: true,
+      facesBlurred: 1,
+      platesBlurred: 2,
+      exifRemoved: true,
+      width: 320,
+    });
+    expect(createArg.integrity.anonymization).toMatchObject({
+      status: 'applied',
+      backend: 'heuristic',
+    });
+    expect(createArg.anonymizedAt).toEqual(NOW);
+  });
+
+  it('zorunlu anonimleştirme başarısızsa 503 döner ve kayıt yazılmaz', async () => {
+    const anonymizer = makeAnonymizer(new Error('ai down'));
+    const service = makeService(fakes, undefined, {
+      anonymizer,
+      anonymizationRequired: true,
+    });
+
+    await expect(service.createReport(validInput())).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'ANONYMIZATION_FAILED',
+    });
+
+    expect(fakes.storage.put).not.toHaveBeenCalled();
+    expect(fakes.repo.create).not.toHaveBeenCalled();
+  });
+
+  it('opsiyonel anonimleştirme hatasını integrity altında kaydeder', async () => {
+    const anonymizer = makeAnonymizer(new Error('ai down'));
+    const service = makeService(fakes, undefined, {
+      anonymizer,
+      anonymizationRequired: false,
+    });
+
+    await service.createReport(validInput());
+
+    const createArg = vi.mocked(fakes.repo.create).mock.calls[0]?.[0] as {
+      images: unknown[];
+      integrity: { anonymization: { status: string; error: string | null } };
+      anonymizedAt: Date | null;
+    };
+
+    expect(createArg.images).toHaveLength(1);
+    expect(createArg.integrity.anonymization.status).toBe('failed');
+    expect(createArg.integrity.anonymization.error).toContain('ai down');
+    expect(createArg.anonymizedAt).toBeNull();
+  });
+
+  it('DB hatasında orijinal ve anonim dosyayı birlikte siler', async () => {
+    fakes = makeFakes({
+      create: async () => {
+        throw new Error('db down');
+      },
+    });
+    const service = makeService(fakes, undefined, { anonymizer: makeAnonymizer() });
+
+    await expect(service.createReport(validInput())).rejects.toThrow('db down');
+    expect(fakes.storage.delete).toHaveBeenCalledTimes(2);
+  });
+
+  it('EXIF GPS ve zamanını istemci verisiyle karşılaştırır', async () => {
+    const buffer = readFileSync(new URL('./fixtures/exif-sample.jpg', import.meta.url));
+    const service = makeService(fakes);
+
+    await service.createReport({
+      metadata: makeMetadata({
+        capturedAt: '2026-03-15T11:58:00+03:00',
+        location: { latitude: 41.0082, longitude: 28.9784, accuracyM: 8.5 },
+      }),
+      image: { buffer, declaredMimeType: 'image/jpeg' },
+    });
+
+    const createArg = vi.mocked(fakes.repo.create).mock.calls[0]?.[0] as {
+      integrity: {
+        exif: { present: boolean; make: string | null; capturedAt: string | null };
+        checks: {
+          gps: { status: string; difference: number | null };
+          capturedAt: { status: string; difference: number | null };
+        };
+      };
+    };
+
+    expect(createArg.integrity.exif).toMatchObject({
+      present: true,
+      make: 'TestMake',
+      capturedAt: '2026-03-15T11:58:00',
+    });
+    expect(createArg.integrity.checks.gps.status).toBe('match');
+    expect(createArg.integrity.checks.gps.difference).toBeLessThan(10);
+    expect(createArg.integrity.checks.capturedAt).toMatchObject({
+      status: 'match',
+      difference: 0,
+    });
+  });
+
+  it('EXIF ile istemci konumu uyuşmazsa mismatch işaretler', async () => {
+    const buffer = readFileSync(new URL('./fixtures/exif-sample.jpg', import.meta.url));
+    const service = makeService(fakes);
+
+    await service.createReport({
+      metadata: makeMetadata({
+        capturedAt: '2026-03-15T11:58:00+03:00',
+        location: { latitude: 39.9334, longitude: 32.8597, accuracyM: 8.5 },
+      }),
+      image: { buffer, declaredMimeType: 'image/jpeg' },
+    });
+
+    const createArg = vi.mocked(fakes.repo.create).mock.calls[0]?.[0] as {
+      integrity: { checks: { gps: { status: string; difference: number | null } } };
+    };
+
+    expect(createArg.integrity.checks.gps.status).toBe('mismatch');
+    expect(createArg.integrity.checks.gps.difference).toBeGreaterThan(EXIF_GPS_TOLERANCE_M);
   });
 });
 

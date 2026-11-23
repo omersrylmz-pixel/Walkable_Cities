@@ -43,6 +43,10 @@ export function payloadTooLarge(message: string): AppError {
   return new AppError(413, 'PAYLOAD_TOO_LARGE', message);
 }
 
+export function unavailable(message: string, code = 'SERVICE_UNAVAILABLE'): AppError {
+  return new AppError(503, code, message);
+}
+
 export function serviceUnavailable(message: string): AppError {
   return new AppError(503, 'SERVICE_UNAVAILABLE', message);
 }

@@ -50,6 +50,14 @@ describe('parseReportMetadata', () => {
     expect(parsed.description).toBe('Kaldırımda park etmiş araç');
   });
 
+  it('capturedAt UTC ofsetini dakika olarak korur', () => {
+    expect(
+      parseReportMetadata(validMetadata({ capturedAt: '2026-03-15T11:58:00+03:00' }), NOW)
+        .capturedAtOffsetMinutes,
+    ).toBe(180);
+    expect(parseReportMetadata(validMetadata(), NOW).capturedAtOffsetMinutes).toBe(0);
+  });
+
   it('5 dakikadan fazla gelecekteki capturedAt değerini reddeder', () => {
     const future = new Date(NOW.getTime() + 6 * 60 * 1000).toISOString();
 

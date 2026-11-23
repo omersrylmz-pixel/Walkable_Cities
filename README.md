@@ -330,8 +330,8 @@ Tüm alanlar ve kısıtlar için [`infra/init.sql`](infra/init.sql).
 ## KVKK ve Gizlilik
 
 - Mobil uygulama yalnızca **canlı kamera** çekimine izin verir; galeriden yükleme kapalıdır (bağlam doğruluğu + kötüye kullanım önleme).
-- Yüz ve plaka bölgeleri API'de **yayın öncesi** bulanıklaştırılır; orijinal görsel yalnızca yetkili moderasyon erişimine açıktır.
-- EXIF konum/zaman bilgisi sunucuda ayrıştırılır ve istemciden gelen GPS/zaman ile tutarlılık kontrolünden geçirilir.
+- Yüz ve plaka bölgeleri AI servisinde **yayın öncesi** Gauss ile bulanıklaştırılır; orijinal görsel yalnızca yetkili moderasyon erişimine açıktır.
+- EXIF konum/zaman bilgisi sunucuda ayrıştırılır, istemciden gelen GPS/zaman ile çapraz doğrulanır ve sonuç `reports.integrity` alanında saklanır; anonimleştirilmiş PNG EXIF taşımaz.
 - Kişisel veri içermeyen türetilmiş kayıtlar (tespit kutuları, overlap oranı, H3 hücresi) analiz katmanına aktarılır.
 - Saklama süresi `reports.retention_expires_at` ile tanımlıdır; süre sonunda görseller silinir, istatistiksel kayıt anonim kalır.
 - Açık rıza metni sürümü `app_user.kvkk_consent_at` alanı ile izlenir.

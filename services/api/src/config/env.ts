@@ -14,6 +14,18 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
+/** `false`, `0`, `no`, `off` değerlerini false; diğer dolu değerleri true kabul eder. */
+const booleanFromEnv = (fallback: boolean) =>
+  z.preprocess((value) => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value !== 'string' || value.trim() === '') {
+      return fallback;
+    }
+    return !['false', '0', 'no', 'off'].includes(value.trim().toLowerCase());
+  }, z.boolean());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('0.0.0.0'),
@@ -27,6 +39,19 @@ const envSchema = z.object({
   DATABASE_URL: optionalString,
   DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
   AI_SERVICE_URL: z.string().url().default('http://localhost:8001'),
+
+  /** KVKK: yüz/plaka anonimleştirme açık mı? Kapalıysa yalnızca orijinal saklanır. */
+  ANONYMIZATION_ENABLED: booleanFromEnv(true),
+  /**
+   * Anonimleştirme başarısız olduğunda ihbar reddedilsin mi?
+   * KVKK için üretimde `true` önerilir; geliştirmede AI servisi kapalıyken
+   * `false` yaparak akış test edilebilir.
+   */
+  ANONYMIZATION_REQUIRED: booleanFromEnv(true),
+  ANONYMIZATION_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
+
+  /** KVKK saklama süresi (gün); `retention_expires_at` bu süre sonrasına yazılır. */
+  RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(730),
 
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
   STORAGE_LOCAL_DIR: z.string().min(1).default('./.storage'),

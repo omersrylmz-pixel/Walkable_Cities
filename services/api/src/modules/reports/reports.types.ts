@@ -1,3 +1,5 @@
+import type { ReportIntegrity } from '../../shared/integrity.js';
+
 export const VIOLATION_TYPES = [
   'kaldirim_isgali',
   'yaya_gecidi_ihlali',
@@ -75,6 +77,9 @@ export interface ReportDto {
   };
   duplicateOf: string | null;
   duplicateScore: number | null;
+  anonymizedAt: string | null;
+  retentionExpiresAt: string;
+  integrity: ReportIntegrity | null;
   images: ReportImageDto[];
   createdAt: string;
   updatedAt: string;
@@ -97,12 +102,24 @@ export interface NewReportInput {
   deviceInfo: Record<string, unknown>;
   duplicateOf: string | null;
   duplicateScore: number | null;
-  image: {
-    storagePath: string;
-    sha256: Buffer;
-    mimeType: string;
-    byteSize: number;
-  };
+  anonymizedAt: Date | null;
+  retentionExpiresAt: Date;
+  integrity: ReportIntegrity;
+  images: NewReportImageInput[];
+}
+
+export interface NewReportImageInput {
+  kind: MediaKind;
+  storagePath: string;
+  sha256: Buffer;
+  mimeType: string;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  blurApplied: boolean;
+  facesBlurred: number;
+  platesBlurred: number;
+  exifRemoved: boolean;
 }
 
 export interface ImageDuplicateMatch {

@@ -206,6 +206,8 @@ CREATE TABLE IF NOT EXISTS reports (
     model_version         text,
     device_info           jsonb            NOT NULL DEFAULT '{}'::jsonb,
     ai_metadata           jsonb            NOT NULL DEFAULT '{}'::jsonb,
+    -- EXIF GPS/zaman çapraz doğrulaması + anonimleştirme özeti (Faz 3).
+    integrity             jsonb            NOT NULL DEFAULT '{}'::jsonb,
 
     -- Moderasyon
     reviewed_by           uuid             REFERENCES app_user(id) ON DELETE SET NULL,

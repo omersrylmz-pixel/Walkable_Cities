@@ -75,6 +75,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
     CREATE TYPE user_role AS ENUM (
         'citizen',            -- vatandaş (mobil)
+        'viewer',             -- salt okunur panel kullanıcısı
         'moderator',          -- manuel inceleme
         'municipality_admin', -- belediye yöneticisi
         'analyst',            -- mekânsal analiz
@@ -619,11 +620,24 @@ COMMENT ON MATERIALIZED VIEW mv_h3_density IS
     'H3 hücresi bazlı ihbar yoğunluğu. REFRESH MATERIALIZED VIEW CONCURRENTLY ile yenilenir.';
 
 -- -----------------------------------------------------------------------------
--- 13) Seed: servis hesabı (makine-makine)
+-- 13) Seed: servis hesabı (makine-makine) + geliştirme panel kullanıcıları
 -- -----------------------------------------------------------------------------
 INSERT INTO app_user (display_name, email, role)
 VALUES ('AI Service', 'ai-service@internal.local', 'service')
 ON CONFLICT (email) DO NOTHING;
+
+-- Geliştirme oturumu (apps/web/.env: WEB_DEV_AUTH=true) için sabit UUID'li
+-- demo personel. Üretimde Supabase Auth kullanıcıları app_user tablosuna
+-- senkronize edilmelidir (bkz. apps/web/README.md).
+INSERT INTO app_user (id, display_name, email, role)
+VALUES
+    ('11111111-1111-4111-8111-111111111111', 'Ayse Yilmaz', 'ayse.yilmaz@belediye.example', 'municipality_admin'),
+    ('22222222-2222-4222-8222-222222222222', 'Mert Demir', 'mert.demir@belediye.example', 'moderator'),
+    ('33333333-3333-4333-8333-333333333333', 'Selin Kaya', 'selin.kaya@belediye.example', 'viewer')
+ON CONFLICT (id) DO UPDATE
+SET display_name = EXCLUDED.display_name,
+    email = EXCLUDED.email,
+    role = EXCLUDED.role;
 
 -- -----------------------------------------------------------------------------
 -- Bitiş

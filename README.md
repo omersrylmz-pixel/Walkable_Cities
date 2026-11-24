@@ -225,7 +225,25 @@ npm run mobile:android      # Android emülatöründe aç
 - Uygulama yalnızca **canlı kamera** ile çekim yapar; galeri erişimi yoktur.
 - Çevrimdışıyken çekilen ihbarlar cihazda kuyruğa alınır ve bağlantı gelince idempotent olarak gönderilir.
 
-### 7) Entegrasyon testlerini çalıştırın
+### 7) Web panelini çalıştırın
+
+```bash
+npm run web:dev              # http://localhost:3002
+npm run web:test             # oturum, H3 ve biçimlendirme testleri
+```
+
+- Geliştirmede `WEB_DEV_AUTH=true` iken **moderatör**, **belediye yöneticisi** ve **izleyici**
+  demo kullanıcılarıyla giriş yapılır.
+- Üretimde `WEB_SESSION_SECRET` tanımlayın ve `WEB_DEV_AUTH=false` yapın; kurumsal giriş için
+  `SUPABASE_URL` + `SUPABASE_ANON_KEY` girin.
+- Orijinal görseller yalnızca `moderator` ve `municipality_admin` rollerine açılır; diğer roller
+  yalnızca anonimleştirilmiş kopyayı görür.
+- MapLibre worker'ı `predev` / `prebuild` / `prestart` script'leriyle `public/` altına otomatik
+  kopyalanır.
+
+Ayrıntılar: [`apps/web/README.md`](apps/web/README.md).
+
+### 8) Entegrasyon testlerini çalıştırın
 
 Yığın ayaktayken gerçek HTTP ve PostgreSQL üzerinden uçtan uca KVKK + karar
 hattı testleri:
@@ -283,6 +301,10 @@ Kök `.env.example` dosyası tüm servisler için tek referanstır. Her servis k
 | `MAX_UPLOAD_MB` | Tek görsel için üst boyut (MB) | `12` |
 | `AI_SERVICE_URL` | API → AI servisi iç adresi | `http://localhost:8001` |
 | `CORS_ORIGINS` | Virgülle ayrılmış izinli origin listesi | `http://localhost:3002,http://localhost:8081` |
+| `API_INTERNAL_URL` | Web panelinin sunucu tarafından bağlandığı API adresi | `http://localhost:3001` |
+| `WEB_SESSION_SECRET` | Panel oturum çerezini imzalayan sır (üretimde zorunlu) | — |
+| `WEB_DEV_AUTH` | Demo kullanıcı girişi (`true`/`false`) | geliştirmede açık |
+| `NEXT_PUBLIC_MAP_STYLE_URL` | MapLibre stil URL'si (opsiyonel) | OSM raster |
 | `API_PORT` / `AI_PORT` | Host port eşlemesi (konteyner içi 3000 / 8000) | `3001` / `8001` |
 | `STORAGE_DRIVER` | `local` veya `supabase` | `local` |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Supabase Storage / Postgres entegrasyonu | — |
@@ -363,7 +385,7 @@ Tüm alanlar ve kısıtlar için [`infra/init.sql`](infra/init.sql).
 | 1 | Expo mobil iskeleti, kamera/GPS/zaman doğrulama, API iskeleti ve migrasyonlar | ✅ |
 | 2 | AI servisi: ONNX Runtime, tespit/segmentasyon hattı, overlap, skor füzyonu, karar ve testler | ✅ (ağırlık/eğitim bekliyor) |
 | 3 | KVKK anonimleştirme, mükerrer kontrol, karar hattı ve entegrasyon testleri | ✅ (PII modeli heuristic) |
-| 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ⏳ |
+| 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ✅ (eşik düzenleme ve Gi* Faz 5) |
 | 5 | H3 agregasyon, DBSCAN / Getis-Ord Gi* sıcak nokta analizi | ⏳ |
 | 6 | Uçtan uca testler, CI/CD, gözlemlenebilirlik | ⏳ |
 | 7 | Saha pilotu, doğruluk ölçümü, TÜBİTAK raporlama | ⏳ |

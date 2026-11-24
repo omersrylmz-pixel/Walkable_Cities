@@ -141,3 +141,6 @@ tmp/
 temp/
 *.tmp
 *.bak
+
+# MapLibre worker (apps/web/scripts/copy-maplibre-worker.mjs tarafından üretilir)
+apps/web/public/maplibre-gl-worker.mjs

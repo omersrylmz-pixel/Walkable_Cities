@@ -18,6 +18,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "retention:purge": "tsx src/scripts/purge-retention.ts",
     "retention:purge:prod": "node dist/scripts/purge-retention.js",
+    "seed:istanbul": "tsx src/scripts/seed-istanbul.ts",
     "migrate:up": "node-pg-migrate up --envPath ../../.env",
     "migrate:down": "node-pg-migrate down --envPath ../../.env",
     "migrate:create": "node-pg-migrate create --envPath ../../.env"

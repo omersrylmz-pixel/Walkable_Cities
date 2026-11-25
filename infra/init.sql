@@ -442,10 +442,10 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'h3') THEN
         -- h3-pg hücreleri `h3index` (8 baytlık özel tip) döner; kolon bigint
-        -- olduğu için açık cast gerekir.
+        -- olduğu için açık cast gerekir. point (boylam, enlem) sırasındadır.
         EXECUTE 'SELECT h3_lat_lng_to_cell(POINT($1, $2), $3)::bigint'
            INTO v_cell
-           USING ST_Y(NEW.location), ST_X(NEW.location), NEW.h3_resolution;
+           USING ST_X(NEW.location), ST_Y(NEW.location), NEW.h3_resolution;
 
         NEW.h3_cell := v_cell;
     END IF;
@@ -455,7 +455,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION set_report_h3_cell() IS
-    'INSERT/UPDATE sırasında GPS konumundan H3 hücresini üretir (h3-pg varsa).';
+    'INSERT/UPDATE sırasında GPS konumundan H3 hücresini üretir (h3-pg varsa); point (boylam, enlem) sırasındadır.';
 
 -- 9.4 Zaman damgası sağlık kontrolü (GPS saati manipülasyonu / yanlış saat dilimi).
 CREATE OR REPLACE FUNCTION validate_report_temporal()

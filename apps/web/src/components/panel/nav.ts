@@ -1,4 +1,4 @@
-import { FileText, LayoutDashboard, ListChecks, Map as MapIcon } from 'lucide-react';
+import { FileText, LayoutDashboard, ListChecks, Map as MapIcon, Settings } from 'lucide-react';
 
 import type { Role } from '@/lib/auth/roles';
 
@@ -36,6 +36,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: 'Harita',
     description: 'Nokta ve H3 analizi',
     icon: MapIcon,
+  },
+  {
+    href: '/settings',
+    label: 'Ayarlar',
+    description: 'Eşikler, KVKK ve denetim kaydı',
+    icon: Settings,
+    roles: ['municipality_admin'],
   },
 ];
 

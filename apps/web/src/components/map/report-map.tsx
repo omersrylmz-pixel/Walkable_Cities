@@ -31,6 +31,29 @@ export interface MapPoint {
   cell: string | null;
 }
 
+/** Sunucu tarafında hesaplanmış H3 yoğunluk katmanı (services/api analytics). */
+export interface ServerH3FeatureCollection {
+  type: 'FeatureCollection';
+  features: Array<{
+    type: 'Feature';
+    properties: {
+      cell: string;
+      count: number;
+      avgScore: number | null;
+      pendingCount: number;
+    };
+    geometry: { type: 'Polygon'; coordinates: number[][][] };
+  }>;
+}
+
+export interface ServerH3 {
+  featureCollection: ServerH3FeatureCollection;
+  maxCount: number;
+  resolution: number;
+  totalReports: number;
+  topAreas: Array<{ name: string; count: number }>;
+}
+
 const ISTANBUL_CENTER: [number, number] = [28.9784, 41.0082];
 
 /** Şehir ölçeğinde okunabilir choropleth için H3 çözünürlüğü (hücre ~5 km²). */
@@ -115,7 +138,16 @@ function buildSyntheticPoints(count: number): MapPoint[] {
   return points;
 }
 
-export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview: boolean }) {
+export function ReportMap({
+  points,
+  canReview,
+  h3,
+}: {
+  points: MapPoint[];
+  canReview: boolean;
+  /** Sunucu tarafında filtrelenmiş H3 yoğunluğu; yoksa istemci tarafında hesaplanır. */
+  h3?: ServerH3 | null;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -148,8 +180,29 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
     [visiblePoints],
   );
 
-  const h3GeoJson = useMemo(() => buildH3Features(visiblePoints, H3_MAP_RESOLUTION), [visiblePoints]);
-  const h3Max = useMemo(() => h3MaxCount(h3GeoJson), [h3GeoJson]);
+  const clientH3 = useMemo(
+    () => buildH3Features(visiblePoints, H3_MAP_RESOLUTION),
+    [visiblePoints],
+  );
+  const clientH3Max = useMemo(() => h3MaxCount(clientH3), [clientH3]);
+
+  // Yüklenen H3 verisi varsa sunucunun filtrelenmiş agregasyonu kullanılır;
+  // yoksa (veya yük testi açıkken) noktalardan istemci tarafında yeniden hesaplanır.
+  const useServerH3 = Boolean(h3) && !loadTest;
+  const activeH3 = useServerH3 && h3 ? h3.featureCollection : clientH3;
+  const activeH3Max = useServerH3 && h3 ? h3.maxCount : clientH3Max;
+  const activeResolution = useServerH3 && h3 ? h3.resolution : H3_MAP_RESOLUTION;
+
+  /** Choropleth renk durakları (lejantla aynı değerler). */
+  const h3Stops = useMemo(() => {
+    const max = Math.max(2, activeH3Max);
+    return {
+      min: 1,
+      q1: Math.max(2, Math.round(max * 0.25)),
+      q2: Math.max(3, Math.round(max * 0.6)),
+      max,
+    };
+  }, [activeH3Max]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -345,6 +398,8 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
         if (!feature) return;
         const cell = String(feature.properties?.cell ?? '');
         const count = feature.properties?.count as number | undefined;
+        const avgScore = feature.properties?.avgScore as number | null | undefined;
+        const pendingCount = feature.properties?.pendingCount as number | undefined;
         const container = document.createElement('div');
         container.className = 'space-y-1 text-xs';
         const title = document.createElement('p');
@@ -353,6 +408,17 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
         const value = document.createElement('p');
         value.textContent = `${count ?? 0} ihbar`;
         container.append(title, value);
+
+        if (typeof avgScore === 'number') {
+          const score = document.createElement('p');
+          score.textContent = `Ortalama skor: ${formatScore(avgScore)}`;
+          container.append(score);
+        }
+        if (typeof pendingCount === 'number' && pendingCount > 0) {
+          const pending = document.createElement('p');
+          pending.textContent = `İncelemede: ${pendingCount}`;
+          container.append(pending);
+        }
 
         new Popup({ closeButton: true, maxWidth: '260px' })
           .setLngLat(event.lngLat)
@@ -390,23 +456,23 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
     const map = mapRef.current;
     if (!map || !ready) return;
     const source = map.getSource('h3') as GeoJSONSource | undefined;
-    source?.setData(h3GeoJson as unknown as GeoJSON.FeatureCollection);
-    if (map.getLayer('h3-fill') && h3Max >= 2) {
+    source?.setData(activeH3 as unknown as GeoJSON.FeatureCollection);
+    if (map.getLayer('h3-fill') && activeH3Max >= 2) {
       map.setPaintProperty('h3-fill', 'fill-color', [
         'interpolate',
         ['linear'],
         ['get', 'count'],
-        1,
+        h3Stops.min,
         '#fef3c7',
-        Math.max(2, Math.round(h3Max * 0.25)),
+        h3Stops.q1,
         '#fbbf24',
-        Math.max(3, Math.round(h3Max * 0.6)),
+        h3Stops.q2,
         '#ea580c',
-        h3Max,
+        h3Stops.max,
         '#991b1b',
       ]);
     }
-  }, [h3GeoJson, h3Max, ready]);
+  }, [activeH3, activeH3Max, h3Stops, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -463,7 +529,8 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
 
         <p className="text-xs text-muted-foreground" aria-live="polite">
           {loadTest ? 'Sentetik yük testi: 10.000 nokta' : `${visiblePoints.length} ihbar`} ·{' '}
-          {h3GeoJson.features.length} H3 hücresi
+          {activeH3.features.length} H3 hücresi · res {activeResolution}
+          {useServerH3 ? ' · sunucu tarafında hesaplandı' : ' · istemcide hesaplandı'}
         </p>
       </div>
 
@@ -505,12 +572,23 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
             </ul>
           ) : (
             <div className="space-y-1">
-              <p className="font-medium">H3 hücresindeki ihbar sayısı</p>
+              <p className="font-medium">
+                H3 hücresindeki ihbar sayısı · res {activeResolution}
+              </p>
               <div className="flex items-center gap-1">
                 <span>az</span>
-                <span className="h-2 w-24 rounded-sm bg-gradient-to-r from-amber-200 via-orange-500 to-red-800" aria-hidden="true" />
+                <span
+                  className="h-2 w-24 rounded-sm bg-gradient-to-r from-amber-200 via-orange-500 to-red-800"
+                  aria-hidden="true"
+                />
                 <span>çok</span>
               </div>
+              <ul className="flex justify-between text-[10px] text-muted-foreground">
+                <li>{h3Stops.min}</li>
+                <li>{h3Stops.q1}</li>
+                <li>{h3Stops.q2}</li>
+                <li>{h3Stops.max}+</li>
+              </ul>
             </div>
           )}
         </div>
@@ -518,8 +596,10 @@ export function ReportMap({ points, canReview }: { points: MapPoint[]; canReview
 
       <p className="text-xs text-muted-foreground">
         Nokta katmanı MapLibre kümelemesi kullanır; 10.000 nokta testiyle kümeleme performansı
-        doğrulanabilir. H3 katmanı tüm kayıtları 7. çözünürlükte (yaklaşık 5 km² hücre) yeniden
-        hesaplayarak tutarlı bir choropleth üretir.
+        doğrulanabilir. H3 katmanı varsayılan olarak API tarafında ({' '}
+        <code className="rounded bg-muted px-1">GET /v1/analytics/h3</code> ) çözünürlük, zaman
+        aralığı ve ihlal türü filtreleriyle hesaplanır; API'ye ulaşılamazsa noktalardan istemcide
+        yeniden hesaplanır.
       </p>
     </div>
   );

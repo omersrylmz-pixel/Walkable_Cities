@@ -1,15 +1,23 @@
 import type {
-  AuditPage,
+  AnalyticsRange,
+  AnalyticsResolution,
   ApplyDecisionResult,
+  AuditPage,
   DecisionThresholds,
+  H3Analytics,
   ListReportsQuery,
   ManualDecision,
   MediaKind,
   Pagination,
+  PrivacySettings,
   ReportDto,
   ReportSummaryDto,
   ReviewQueueQuery,
   ReviewQueueResponse,
+  SettingsMutationResult,
+  SystemAuditEntry,
+  SystemAuditPage,
+  SystemSettings,
   ViolationTypeMeta,
 } from './types';
 
@@ -119,11 +127,76 @@ export function getApiBaseUrl(): string {
   return API_URL;
 }
 
+/** API'nin yönetici uçları için panel oturumundaki kullanıcıyı taşır. */
+function actorHeader(actorId: string): Record<string, string> {
+  return { 'x-actor-id': actorId };
+}
+
 export async function getMeta(): Promise<{
   violationTypes: ViolationTypeMeta[];
   thresholds: DecisionThresholds;
 }> {
   return request('/v1/meta');
+}
+
+export async function getSettings(actorId: string): Promise<SystemSettings> {
+  return request('/v1/settings', { headers: actorHeader(actorId) });
+}
+
+export async function updateThresholds(
+  actorId: string,
+  input: { autoAccept: number; manualReview: number },
+): Promise<SettingsMutationResult> {
+  return request('/v1/settings/thresholds', {
+    method: 'PATCH',
+    headers: actorHeader(actorId),
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updatePrivacy(
+  actorId: string,
+  input: PrivacySettings,
+): Promise<SettingsMutationResult> {
+  return request('/v1/settings/privacy', {
+    method: 'PATCH',
+    headers: actorHeader(actorId),
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getSystemAudit(
+  actorId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<SystemAuditPage> {
+  const envelope = await requestJson<ListEnvelopeWithPagination<SystemAuditEntry>>(
+    `/v1/settings/audit${toQuery({
+      limit: options.limit ?? 50,
+      offset: options.offset ?? 0,
+    })}`,
+    { headers: actorHeader(actorId) },
+  );
+
+  return {
+    items: envelope.data,
+    total: envelope.pagination.total,
+    limit: envelope.pagination.limit,
+    offset: envelope.pagination.offset,
+  };
+}
+
+export async function getH3Analytics(query: {
+  resolution?: AnalyticsResolution;
+  range?: AnalyticsRange;
+  violationType?: ViolationTypeMeta['code'];
+}): Promise<H3Analytics> {
+  return request(
+    `/v1/analytics/h3${toQuery({
+      resolution: query.resolution,
+      range: query.range,
+      violationType: query.violationType,
+    })}`,
+  );
 }
 
 export async function listReports(

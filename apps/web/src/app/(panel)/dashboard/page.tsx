@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { getMeta, listReports } from '@/lib/api-client';
-import { canReview } from '@/lib/auth/roles';
+import { ROLE_LABELS, canManageSettings, canReview } from '@/lib/auth/roles';
 import { requireUser } from '@/lib/auth/server';
 import {
   VIOLATION_LABELS,
@@ -117,17 +117,25 @@ export default async function DashboardPage({
   const maxTypeCount = typeRows[0]?.[1] ?? 1;
 
   const reviewer = canReview(user.role);
+  const admin = canManageSettings(user.role);
 
   return (
     <>
       <PageHeader
         title={`Merhaba, ${user.name.split(' ')[0]}`}
-        description="Son 100 ihbar üzerinden hesaplanan özet göstergeler. Ağır mekânsal analizler Faz 5'te sunucu tarafına taşınacak."
+        description={`${ROLE_LABELS[user.role]} görünümü · özet göstergeler son 100 ihbar üzerinden hesaplanır; H3 yoğunluğu harita sayfasında sunucu tarafında hesaplanır.`}
         actions={
-          <Link href="/dashboard" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-            <Activity aria-hidden="true" className="h-4 w-4" />
-            Yenile
-          </Link>
+          <div className="flex items-center gap-2">
+            {admin ? (
+              <Link href="/settings" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                Ayarlar
+              </Link>
+            ) : null}
+            <Link href="/dashboard" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              <Activity aria-hidden="true" className="h-4 w-4" />
+              Yenile
+            </Link>
+          </div>
         }
       />
 
@@ -246,10 +254,15 @@ export default async function DashboardPage({
                 </span>
               </div>
               <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Eşikler API tarafından yönetilir. Panelden düzenleme Faz 4 kapsamı dışında
-                bırakıldı; yönetim ucu audit kaydıyla birlikte sonraki fazda eklenecek.
+                {admin
+                  ? 'Eşikleri değiştirmek için Ayarlar sayfasına gidin; her güncelleme denetim kaydına yazılır.'
+                  : 'Eşikler belediye yöneticisi tarafından Ayarlar sayfasından güncellenir; değişiklikler denetim kaydına yazılır.'}
               </div>
-              {reviewer ? (
+              {admin ? (
+                <Link href="/settings" className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'w-full' })}>
+                  Eşikleri düzenle
+                </Link>
+              ) : reviewer ? (
                 <Link href="/review" className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'w-full' })}>
                   İnceleme kuyruğuna git
                 </Link>
@@ -285,12 +298,45 @@ export default async function DashboardPage({
               )}
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Rol ve yetkiler</CardTitle>
+              <CardDescription>{ROLE_LABELS[user.role]}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {user.role === 'municipality_admin'
+                  ? 'Tüm ihbarlar, orijinal görseller, manuel kararlar ve sistem ayarları (eşikler, KVKK, denetim kaydı).'
+                  : user.role === 'moderator'
+                    ? 'İnceleme kuyruğu, manuel kararlar ve orijinal görsel erişimi. Sistem ayarlarını değiştiremez.'
+                    : 'Salt okunur özetler ve anonimleştirilmiş görseller. Karar veremez, ayar değiştiremez.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/map" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                  Harita analizi
+                </Link>
+                <Link href="/reports" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                  İhbar listesi
+                </Link>
+                {reviewer ? (
+                  <Link href="/review" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                    İnceleme kuyruğu
+                  </Link>
+                ) : null}
+                {admin ? (
+                  <Link href="/settings" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                    Sistem ayarları
+                  </Link>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        Kuyruk yaşı, son 100 inceleme kaydının yakalanma zamanı üzerinden ortalamadır. Ağır
-        agregasyonlar Faz 5'te API tarafına taşınacak.
+        Kuyruk yaşı son 100 inceleme kaydının yakalanma zamanı üzerinden ortalanır; H3 yoğunluğu,
+        ilçe özeti ve tür/zaman filtreleri harita sayfasında API tarafında hesaplanır.
       </p>
     </>
   );

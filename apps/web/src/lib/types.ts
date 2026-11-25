@@ -73,6 +73,9 @@ export interface ReportDto {
     cell: string | null;
     resolution: number;
   };
+  modelVersion: string | null;
+  /** AI analizi özeti: kaynak, tespit sayısı, gerekçeler. */
+  aiMetadata: Record<string, unknown> | null;
   duplicateOf: string | null;
   duplicateScore: number | null;
   anonymizedAt: string | null;
@@ -157,4 +160,70 @@ export interface Pagination {
   limit: number;
   offset: number;
   hasMore: boolean;
+}
+
+/** ---------------- Ayarlar ve sistem denetimi (services/api settings) ------- */
+
+export interface PrivacySettings {
+  retentionDays: number;
+  anonymizationRequired: boolean;
+}
+
+export interface SystemSettings {
+  thresholds: DecisionThresholds;
+  privacy: PrivacySettings;
+  loadedAt: string | null;
+}
+
+export interface SystemAuditEntry {
+  id: string;
+  actorId: string | null;
+  action: string;
+  targetKey: string | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SystemAuditPage {
+  items: SystemAuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SettingsMutationResult {
+  settings: SystemSettings;
+  audit: SystemAuditEntry;
+}
+
+/** ---------------- Mekânsal analitik (services/api analytics) --------------- */
+
+export type AnalyticsRange = '7d' | '30d' | '90d' | '180d' | 'all';
+export type AnalyticsResolution = 7 | 8 | 9;
+
+export interface H3CellFeature {
+  cell: string;
+  count: number;
+  avgScore: number | null;
+  pendingCount: number;
+  geometry: {
+    type: 'Polygon';
+    coordinates: number[][][];
+  };
+}
+
+export interface H3AreaSummary {
+  name: string;
+  count: number;
+}
+
+export interface H3Analytics {
+  resolution: AnalyticsResolution;
+  totalReports: number;
+  cellCount: number;
+  maxCount: number;
+  avgScore: number | null;
+  cells: H3CellFeature[];
+  topAreas: H3AreaSummary[];
 }

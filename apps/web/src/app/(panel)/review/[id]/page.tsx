@@ -65,6 +65,23 @@ function actorLabel(actorId: string | null): string {
   return DEV_ACTOR_NAMES.get(actorId) ?? `${actorId.slice(0, 8)}…`;
 }
 
+/** AI analiz hattının tanılama özetini (kaynak, tespit, gerekçe) çıkarır. */
+function aiSummary(report: {
+  modelVersion: string | null;
+  aiMetadata: Record<string, unknown> | null;
+}): { source: string; detections: string; reasons: string } {
+  const meta = report.aiMetadata ?? {};
+  const source = typeof meta.source === 'string' ? meta.source : 'bilinmiyor';
+  const detections = Array.isArray(meta.detections)
+    ? `${meta.detections.length} tespit`
+    : '—';
+  const reasons = Array.isArray(meta.reasons) && meta.reasons.length > 0
+    ? meta.reasons.map((reason) => String(reason)).join(', ')
+    : '—';
+
+  return { source, detections, reasons };
+}
+
 export default async function ReviewDetailPage({
   params,
   searchParams,
@@ -100,6 +117,7 @@ export default async function ReviewDetailPage({
   const view = requestedView === 'original' && privileged && originalImage ? 'original' : 'anonymized';
   const image = view === 'original' ? originalImage : anonymizedImage;
   const imageKind = view === 'original' ? 'original' : 'anonymized';
+  const ai = aiSummary(report);
 
   return (
     <>
@@ -239,6 +257,16 @@ export default async function ReviewDetailPage({
                 <div>
                   <dt className="text-muted-foreground">Kuyruk yaşı</dt>
                   <dd className="mt-1">{formatAge(report.capturedAt)}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">Skor kaynağı</dt>
+                  <dd className="mt-1">
+                    <span className="font-medium">{report.modelVersion ?? '—'}</span>
+                    <span className="ml-2 text-muted-foreground">· {ai.source}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {ai.detections} · {ai.reasons}
+                    </span>
+                  </dd>
                 </div>
                 <div className="col-span-2">
                   <dt className="text-muted-foreground">Açıklama</dt>

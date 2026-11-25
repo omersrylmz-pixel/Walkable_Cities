@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { canReview, type Role } from './roles';
+import { canManageSettings, canReview, type Role } from './roles';
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -42,6 +42,15 @@ export async function requireRole(
 export async function requireReviewer(nextPath = '/review'): Promise<SessionPayload> {
   const user = await requireUser(nextPath);
   if (!canReview(user.role)) {
+    redirect('/dashboard?denied=1');
+  }
+  return user;
+}
+
+/** Yalnızca belediye yöneticisi girebildiği sayfalar için kısayol. */
+export async function requireAdmin(nextPath = '/settings'): Promise<SessionPayload> {
+  const user = await requireUser(nextPath);
+  if (!canManageSettings(user.role)) {
     redirect('/dashboard?denied=1');
   }
   return user;

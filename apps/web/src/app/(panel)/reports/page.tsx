@@ -220,7 +220,7 @@ export default async function ReportsPage({
                   <th scope="col">Skor</th>
                   <th scope="col" className="hidden sm:table-cell">Görsel</th>
                   <th scope="col">Yakalandı</th>
-                  {reviewer ? <th scope="col" className="text-right">İşlem</th> : null}
+                  <th scope="col" className="text-right">İşlem</th>
                 </tr>
               </thead>
               <tbody>
@@ -257,7 +257,16 @@ export default async function ReportsPage({
                           İncele
                         </Link>
                       </td>
-                    ) : null}
+                    ) : (
+                      <td className="text-right">
+                        <Link
+                          href={`/reports/${report.id}`}
+                          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                        >
+                          Detay
+                        </Link>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

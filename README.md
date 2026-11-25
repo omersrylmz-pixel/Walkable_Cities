@@ -4,7 +4,7 @@
 
 Yapay zekâ destekli, KVKK uyumlu ve mekânsal analiz odaklı bir yaya yolu ihlal tespit / karar destek platformu. Vatandaşların sahada çektikleri fotoğraflar, yapay zekâ servisinde nesne tespiti ve segmentasyon ile analiz edilir; güven skoruna göre otomatik kabul, manuel inceleme veya otomatik ret kararı üretilir. Biriken veriler PostGIS + H3 ızgarası üzerinde sıcak nokta (hotspot) analizine dönüşür ve belediye yönetim paneline sunulur.
 
-> **Durum:** Faz 2 — AI servisi çıkarım hattı, overlap/skor/karar mekanizması ve testler tamamlandı. Gerçek YOLO26 / RF-DETR / segmentasyon ağırlıkları ve doğrulama seti henüz yok; geliştirme/CI ortamında deterministik yedek hat kullanılıyor.
+> **Durum:** Faz 5 — yönetici ayarları (eşikler + KVKK + sistem denetim izi), AI skorlama hattı (AI yokken kural tabanlı yedek skor), sunucu tarafı H3 analitiği (7/8/9 çözünürlük, tür/zaman filtreleri) ve İstanbul demo verisi tamamlandı. Gerçek YOLO26 / RF-DETR / segmentasyon ağırlıkları ve doğrulama seti henüz yok; geliştirme/CI ortamında deterministik yedek hat kullanılıyor.
 
 ---
 
@@ -243,7 +243,19 @@ npm run web:test             # oturum, H3 ve biçimlendirme testleri
 
 Ayrıntılar: [`apps/web/README.md`](apps/web/README.md).
 
-### 8) Entegrasyon testlerini çalıştırın
+### 8) Demo verisini yükleyin
+
+```bash
+npm run seed:istanbul --workspace @yaya/api -- --count 750
+docker cp services/api/.storage/. yaya-api:/app/.storage/
+```
+
+Panel ve harita böylece 750 gerçekçi İstanbul ihbarıyla dolar (ilçe/mahalle dağılımı,
+tür/zaman/skor çeşitliliği, inceleme kuyruğu ve denetim izleri). Görseller
+`STORAGE_LOCAL_DIR` altına yazılır; Docker ortamında `docker cp` ile api konteynerine
+aktarılır.
+
+### 9) Entegrasyon testlerini çalıştırın
 
 Yığın ayaktayken gerçek HTTP ve PostgreSQL üzerinden uçtan uca KVKK + karar
 hattı testleri:
@@ -272,6 +284,14 @@ Taban adres: `http://localhost:3001/v1`
 | `GET /reports/:id` | Tek ihbar, görselleriyle birlikte |
 | `GET /reports/:id/images/:kind` | Görseli ikili olarak döndürür (`original`, `anonymized`, `thumbnail`) |
 | `GET /meta` | İhlal türleri ve karar eşikleri |
+| `GET /review-queue` | Manuel inceleme bandındaki ihbarlar (eşiklerle) |
+| `POST /reports/:id/decision` | Manuel karar + değiştirilemez denetim izi |
+| `GET /reports/:id/audit` | İhbara ait denetim kayıtları |
+| `GET /settings` | Karar eşikleri + KVKK politikası (**yalnızca yönetici**, `x-actor-id`) |
+| `PATCH /settings/thresholds` | Eşik güncelleme + `system_audit_log` yazımı |
+| `PATCH /settings/privacy` | KVKK politikası güncelleme + denetim izi |
+| `GET /settings/audit` | Sistem düzeyi ayar denetim kaydı |
+| `GET /analytics/h3` | Sunucu tarafı H3 yoğunluğu — `resolution` (7/8/9), `range` (7d…all), `violationType` |
 
 ```bash
 curl -X POST http://localhost:3001/v1/reports \
@@ -287,6 +307,28 @@ curl -X POST http://localhost:3001/v1/reports \
 - **Hata zarfı:** RFC 7807 `application/problem+json` (`type`, `status`, `code`, `detail`, `traceId`, `errors`).
 - **H3:** `h3_cell` PostgreSQL trigger'ı ile doldurulur; 64-bit taşmasını önlemek için API'de **string** olarak döner.
 
+### AI skorlama hattı
+
+Yeni ihbar `AI_ANALYSIS_ENABLED=true` iken AI servisine (`POST /v1/analyze`) gönderilir:
+
+- AI `backend: "onnx"` döndürdüyse skor AI'dan gelir (`confidence_score`, `model_version`).
+- Model yoksa (`backend: "heuristic"`) veya zaman aşımı/hata olursa **kural tabanlı**
+  `shared/heuristic-score.ts` devreye girer; ihbar kaybolmaz, karar eşikleriyle sınıflanır.
+- AI çıktısı her durumda `reports.ai_metadata` altında tanılama olarak saklanır ve
+  inceleme ekranında gösterilir. `AI_ANALYSIS_REQUIRED=true` iken hata 503 ile reddedilir.
+
+### Demo verisi (İstanbul)
+
+```bash
+npm run seed:istanbul --workspace @yaya/api -- --count 750
+docker cp services/api/.storage/. yaya-api:/app/.storage/
+```
+
+750 (500–1000 arası seçilebilir) gerçekçi sentetik ihbar: 39 ilçe ağırlıklı dağılım,
+mahalle/adres metni, tür/zaman/skor/durum çeşitliliği, manuel kararlar, denetim izleri,
+AI değerlendirme kayıtları ve üretilmiş PNG görseller. Script idempotenttir (tekrar
+çalıştırmak önceki seed kayıtlarını siler) ve `h3_cell`'i veritabanı trigger'ı ile üretir.
+
 
 
 ## Ortam Değişkenleri
@@ -300,6 +342,9 @@ Kök `.env.example` dosyası tüm servisler için tek referanstır. Her servis k
 | `DATABASE_POOL_MAX` | PostgreSQL bağlantı havuzu üst sınırı | `10` |
 | `MAX_UPLOAD_MB` | Tek görsel için üst boyut (MB) | `12` |
 | `AI_SERVICE_URL` | API → AI servisi iç adresi | `http://localhost:8001` |
+| `AI_ANALYSIS_ENABLED` | Yeni ihbarlar AI analiz servisine gitsin mi | `true` |
+| `AI_ANALYSIS_REQUIRED` | AI analizi başarısızsa ihbar reddedilsin mi (`false` iken kural tabanlı skorla devam edilir) | `false` |
+| `AI_ANALYSIS_TIMEOUT_MS` | AI istek zaman aşımı | `15000` |
 | `CORS_ORIGINS` | Virgülle ayrılmış izinli origin listesi | `http://localhost:3002,http://localhost:8081` |
 | `API_INTERNAL_URL` | Web panelinin sunucu tarafından bağlandığı API adresi | `http://localhost:3001` |
 | `WEB_SESSION_SECRET` | Panel oturum çerezini imzalayan sır (üretimde zorunlu) | — |
@@ -385,8 +430,8 @@ Tüm alanlar ve kısıtlar için [`infra/init.sql`](infra/init.sql).
 | 1 | Expo mobil iskeleti, kamera/GPS/zaman doğrulama, API iskeleti ve migrasyonlar | ✅ |
 | 2 | AI servisi: ONNX Runtime, tespit/segmentasyon hattı, overlap, skor füzyonu, karar ve testler | ✅ (ağırlık/eğitim bekliyor) |
 | 3 | KVKK anonimleştirme, mükerrer kontrol, karar hattı ve entegrasyon testleri | ✅ (PII modeli heuristic) |
-| 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ✅ (eşik düzenleme ve Gi* Faz 5) |
-| 5 | H3 agregasyon, DBSCAN / Getis-Ord Gi* sıcak nokta analizi | ⏳ |
+| 4 | Next.js + MapLibre belediye paneli, inceleme kuyruğu | ✅ |
+| 5 | Yönetici ayarları + sistem denetimi, AI skorlama hattı, sunucu tarafı H3 analitiği, İstanbul demo verisi | ✅ (DBSCAN / Gi* sıcak nokta analizi bekliyor) |
 | 6 | Uçtan uca testler, CI/CD, gözlemlenebilirlik | ⏳ |
 | 7 | Saha pilotu, doğruluk ölçümü, TÜBİTAK raporlama | ⏳ |
 

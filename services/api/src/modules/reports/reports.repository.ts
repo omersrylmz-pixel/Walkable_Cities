@@ -53,6 +53,8 @@ const REPORT_COLUMNS = `
   r.gps_source,
   r.h3_cell,
   r.h3_resolution,
+  r.model_version,
+  r.ai_metadata,
   r.duplicate_of,
   r.duplicate_score,
   r.anonymized_at,
@@ -80,6 +82,8 @@ interface ReportRow {
   gps_source: GpsSource;
   h3_cell: string | null;
   h3_resolution: number;
+  model_version: string | null;
+  ai_metadata: Record<string, unknown> | null;
   duplicate_of: string | null;
   duplicate_score: string | null;
   anonymized_at: Date | null;
@@ -214,10 +218,12 @@ export class PgReportsRepository implements ReportsRepository {
             client_report_id, violation_type, captured_at, location,
             gps_accuracy_m, gps_source, description, severity,
             duplicate_of, duplicate_score, device_info,
-            anonymized_at, retention_expires_at, integrity
+            anonymized_at, retention_expires_at, integrity,
+            confidence_score, model_version, ai_metadata
          ) VALUES (
             $1, $2::violation_type, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326),
-            $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15::jsonb
+            $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15::jsonb,
+            $16, $17, $18::jsonb
          )
          RETURNING id`,
         [
@@ -236,6 +242,9 @@ export class PgReportsRepository implements ReportsRepository {
           input.anonymizedAt,
           input.retentionExpiresAt,
           input.integrity,
+          input.confidenceScore,
+          input.modelVersion,
+          input.aiMetadata,
         ],
       );
 
@@ -266,6 +275,34 @@ export class PgReportsRepository implements ReportsRepository {
             image.facesBlurred,
             image.platesBlurred,
             image.exifRemoved,
+          ],
+        );
+      }
+
+      if (input.evaluation) {
+        const evaluation = input.evaluation;
+        await client.query(
+          `INSERT INTO report_evaluations (
+              report_id, detector_name, detector_version, segmenter_name,
+              segmenter_version, detector_confidence, overlap_ratio,
+              walkable_area_ratio, detections, thresholds, outcome, latency_ms
+           ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb,
+              decision_for_score($11), $12
+           )`,
+          [
+            reportId,
+            evaluation.detectorName,
+            evaluation.detectorVersion,
+            evaluation.segmenterName,
+            evaluation.segmenterVersion,
+            evaluation.detectorConfidence,
+            evaluation.overlapRatio,
+            evaluation.walkableAreaRatio,
+            evaluation.detections,
+            evaluation.thresholds,
+            evaluation.score,
+            evaluation.latencyMs,
           ],
         );
       }
@@ -440,6 +477,9 @@ export class PgReportsRepository implements ReportsRepository {
         cell: row.h3_cell,
         resolution: row.h3_resolution,
       },
+      modelVersion: row.model_version,
+      aiMetadata:
+        row.ai_metadata && Object.keys(row.ai_metadata).length > 0 ? row.ai_metadata : null,
       duplicateOf: row.duplicate_of,
       duplicateScore: row.duplicate_score === null ? null : Number(row.duplicate_score),
       anonymizedAt: row.anonymized_at?.toISOString() ?? null,

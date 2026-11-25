@@ -50,6 +50,18 @@ const envSchema = z.object({
   ANONYMIZATION_REQUIRED: booleanFromEnv(true),
   ANONYMIZATION_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
 
+  /**
+   * Yeni ihbarlar AI analiz servisine gitsin mi? Kapalıysa skor doğrudan
+   * kural tabanlı (heuristic) hattan üretilir.
+   */
+  AI_ANALYSIS_ENABLED: booleanFromEnv(true),
+  /**
+   * AI analizi başarısızsa ihbar reddedilsin mi?
+   * `false` iken kural tabanlı skorla devam edilir; kayıt kaybolmaz.
+   */
+  AI_ANALYSIS_REQUIRED: booleanFromEnv(false),
+  AI_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(15_000),
+
   /** KVKK saklama süresi (gün); `retention_expires_at` bu süre sonrasına yazılır. */
   RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(730),
   /** Temizlik işinin tek seferde işleyeceği görsel sayısı. */

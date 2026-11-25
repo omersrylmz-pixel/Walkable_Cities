@@ -75,6 +75,9 @@ export interface ReportDto {
     cell: string | null;
     resolution: number;
   };
+  modelVersion: string | null;
+  /** AI analiz özeti: kaynak, tespit sayısı, gerekçeler. */
+  aiMetadata: Record<string, unknown> | null;
   duplicateOf: string | null;
   duplicateScore: number | null;
   anonymizedAt: string | null;
@@ -106,6 +109,25 @@ export interface NewReportInput {
   retentionExpiresAt: Date;
   integrity: ReportIntegrity;
   images: NewReportImageInput[];
+  /** AI veya kural tabanlı güven skoru; DB tetikleyicisi kararı bundan üretir. */
+  confidenceScore: number | null;
+  modelVersion: string | null;
+  aiMetadata: Record<string, unknown>;
+  evaluation: NewReportEvaluationInput | null;
+}
+
+export interface NewReportEvaluationInput {
+  detectorName: string;
+  detectorVersion: string | null;
+  segmenterName: string | null;
+  segmenterVersion: string | null;
+  detectorConfidence: number | null;
+  overlapRatio: number | null;
+  walkableAreaRatio: number | null;
+  detections: unknown[];
+  thresholds: Record<string, unknown>;
+  latencyMs: number | null;
+  score: number;
 }
 
 export interface NewReportImageInput {

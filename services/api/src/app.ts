@@ -5,9 +5,11 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import { loadEnv, parseCorsOrigins, type AppEnv } from './config/env.js';
 import { createContext, type AppContext } from './context.js';
+import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { decisionsRoutes } from './modules/decisions/decisions.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { reportsRoutes } from './modules/reports/reports.routes.js';
+import { settingsRoutes } from './modules/settings/settings.routes.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 
 export const APP_VERSION = '0.1.0';
@@ -62,6 +64,8 @@ export async function buildApp(
   await app.register(healthRoutes, { prefix: '/health', env, db: context.db, storage: context.storage });
   await app.register(reportsRoutes, { prefix: '/v1', service: context.reports });
   await app.register(decisionsRoutes, { prefix: '/v1', service: context.decisions });
+  await app.register(settingsRoutes, { prefix: '/v1', service: context.settings });
+  await app.register(analyticsRoutes, { prefix: '/v1', service: context.analytics });
 
   // Karar eşiklerini açılışta veritabanından oku. DB geçici olarak erişilemezse
   // süreç ayakta kalır; varsayılan eşikler kullanılır ve /health/ready bunu bildirir.
@@ -86,6 +90,8 @@ export async function buildApp(
     decision: '/v1/reports/:id/decision',
     audit: '/v1/reports/:id/audit',
     meta: '/v1/meta',
+    settings: '/v1/settings',
+    analytics: '/v1/analytics/h3',
   }));
 
   // Havuzu uygulama yaşam döngüsüne bağla.

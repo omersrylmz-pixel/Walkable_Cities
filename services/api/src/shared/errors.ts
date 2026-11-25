@@ -35,6 +35,14 @@ export function conflict(message: string, code = 'CONFLICT'): AppError {
   return new AppError(409, code, message);
 }
 
+export function forbidden(message: string, code = 'FORBIDDEN'): AppError {
+  return new AppError(403, code, message);
+}
+
+export function unauthorized(message: string, code = 'UNAUTHORIZED'): AppError {
+  return new AppError(401, code, message);
+}
+
 export function unsupportedMedia(message: string): AppError {
   return new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', message);
 }

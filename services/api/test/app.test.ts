@@ -10,6 +10,8 @@ import { DecisionsService } from '../src/modules/decisions/decisions.service.js'
 import { ReportsService } from '../src/modules/reports/reports.service.js';
 import type { ReportsRepository } from '../src/modules/reports/reports.repository.js';
 import type { StorageAdapter } from '../src/storage/types.js';
+import { AnalyticsService } from '../src/modules/analytics/analytics.service.js';
+import { SettingsService } from '../src/modules/settings/settings.service.js';
 
 const env = loadEnv({
   NODE_ENV: 'test',
@@ -54,6 +56,15 @@ function makeContext(): AppContext {
     listAudit: vi.fn(async () => ({ items: [], total: 0, limit: 50, offset: 0 })),
   } as unknown as DecisionsRepository;
 
+  const settingsRepository = {
+    findActor: vi.fn(async () => null),
+    getThresholds: vi.fn(async () => ({ autoAccept: 0.85, manualReview: 0.6 })),
+    getPrivacy: vi.fn(async () => ({ retentionDays: 730, anonymizationRequired: true })),
+    saveThresholds: vi.fn(),
+    savePrivacy: vi.fn(),
+    listAudit: vi.fn(async () => ({ items: [], total: 0, limit: 50, offset: 0 })),
+  };
+
   const reports = new ReportsService({ repository, storage, maxUploadBytes: 1024 });
 
   return {
@@ -65,6 +76,17 @@ function makeContext(): AppContext {
       repository: decisionsRepository,
       reportsRepository: repository,
       now: () => new Date('2026-03-15T12:00:00.000Z'),
+    }),
+    settings: new SettingsService({ repository: settingsRepository as never }),
+    analytics: new AnalyticsService({
+      repository: {
+        h3Density: vi.fn(async () => ({
+          cells: [],
+          totalReports: 0,
+          avgScore: null,
+          topAreas: [],
+        })),
+      },
     }),
   };
 }

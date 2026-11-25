@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AnalysisResult, Analyzer } from '../../clients/analysis-client.js';
 import type { AnonymizedImage, Anonymizer } from '../../clients/privacy-client.js';
 import {
   notFound,
@@ -8,6 +9,7 @@ import {
   unprocessable,
   unsupportedMedia,
 } from '../../shared/errors.js';
+import { heuristicScore } from '../../shared/heuristic-score.js';
 import { detectImageType, sha256Buffer } from '../../shared/image.js';
 import {
   evaluateExifIntegrity,
@@ -16,10 +18,11 @@ import {
 } from '../../shared/integrity.js';
 import type { StorageAdapter, StoredObject, StoredObjectData } from '../../storage/types.js';
 import type { ReportsRepository } from './reports.repository.js';
-import { parseReportMetadata } from './reports.schemas.js';
+import { parseReportMetadata, type ReportMetadata } from './reports.schemas.js';
 import type {
   CreateReportOutcome,
   ListReportsQuery,
+  NewReportEvaluationInput,
   NewReportImageInput,
   PaginatedReports,
   ReportDto,
@@ -40,10 +43,19 @@ export interface ReportsServiceDeps {
   maxUploadBytes: number;
   /** KVKK anonimleştirici; tanımlı değilse anonim kopya üretilmez. */
   anonymizer?: Anonymizer;
+  /** Görsel analiz istemcisi; tanımlı değilse kural tabanlı skor kullanılır. */
+  analyzer?: Analyzer;
+  /** AI analizi başarısızsa ihbarı reddet (üretimde önerilir). */
+  analysisRequired?: boolean;
   /** Anonimleştirme başarısızsa ihbarı reddet (üretimde önerilir). */
   anonymizationRequired?: boolean;
   /** KVKK saklama süresi (gün). */
   retentionDays?: number;
+  /**
+   * Panelden güncellenen KVKK politikasını okur. Tanımlı değilse env
+   * değerleri (anonimlikRequired, retentionDays) kullanılır.
+   */
+  privacyProvider?: () => Promise<{ retentionDays: number; anonymizationRequired: boolean }>;
   now?: () => Date;
 }
 
@@ -75,11 +87,13 @@ export function nearDuplicateScore(
 export class ReportsService {
   private readonly now: () => Date;
   private readonly anonymizationRequired: boolean;
+  private readonly analysisRequired: boolean;
   private readonly retentionDays: number;
 
   constructor(private readonly deps: ReportsServiceDeps) {
     this.now = deps.now ?? (() => new Date());
     this.anonymizationRequired = deps.anonymizationRequired ?? false;
+    this.analysisRequired = deps.analysisRequired ?? false;
     this.retentionDays = deps.retentionDays ?? 730;
   }
 
@@ -150,6 +164,8 @@ export class ReportsService {
     }
 
     // 4) EXIF çapraz doğrulaması + KVKK anonimleştirmesi (DB yazımından önce).
+    const policy = await this.resolvePrivacyPolicy();
+
     const [exifIntegrity, anonymization] = await Promise.all([
       evaluateExifIntegrity(input.image.buffer, {
         capturedAt,
@@ -157,7 +173,7 @@ export class ReportsService {
         latitude: metadata.location.latitude,
         longitude: metadata.location.longitude,
       }),
-      this.anonymize(input.image.buffer, detected.mimeType),
+      this.anonymize(input.image.buffer, detected.mimeType, policy.anonymizationRequired),
     ]);
 
     const checkedAt = this.now();
@@ -167,7 +183,18 @@ export class ReportsService {
       checkedAt: checkedAt.toISOString(),
     };
 
-    // 5) Görselleri depola; DB yazımı başarısız olursa geri al (compensation).
+    // 5) AI analizi (veya kural tabanlı yedek). Skor, DB tetikleyicisinin
+    //    otomatik kararı üretmesi için ihbar kaydıyla birlikte yazılır.
+    const analysis = await this.analyzeImage({
+      buffer: input.image.buffer,
+      mimeType: detected.mimeType,
+      extension: detected.extension,
+      metadata,
+      integrity,
+      duplicateOf,
+    });
+
+    // 6) Görselleri depola; DB yazımı başarısız olursa geri al (compensation).
     const originalKey = buildStorageKey(capturedAt, detected.extension);
     const storedKeys: string[] = [];
     let storedOriginal: StoredObject;
@@ -236,7 +263,7 @@ export class ReportsService {
         accuracyM: metadata.location.accuracyM ?? null,
         gpsSource: metadata.location.source,
         description: metadata.description ?? null,
-        severity: metadata.severity ?? null,
+        severity: metadata.severity ?? analysis.severity,
         deviceInfo: {
           platform: metadata.device.platform,
           osVersion: metadata.device.osVersion ?? null,
@@ -247,10 +274,14 @@ export class ReportsService {
         duplicateScore,
         anonymizedAt: anonymization.image ? checkedAt : null,
         retentionExpiresAt: new Date(
-          checkedAt.getTime() + this.retentionDays * 24 * 60 * 60 * 1000,
+          checkedAt.getTime() + policy.retentionDays * 24 * 60 * 60 * 1000,
         ),
         integrity,
         images,
+        confidenceScore: analysis.confidenceScore,
+        modelVersion: analysis.modelVersion,
+        aiMetadata: analysis.aiMetadata,
+        evaluation: analysis.evaluation,
       });
 
       return { report, replayed: false };
@@ -270,6 +301,117 @@ export class ReportsService {
   }
 
   /**
+   * Görseli AI servisine gönderir; servis kapalıysa veya yalnızca model
+   * yüklenmemiş sezgisel hattı döndürürse kural tabanlı skora düşer.
+   *
+   * AI'nın `heuristic` arka ucu gerçek model çalıştırmadığı için skor olarak
+   * kullanılmaz; tanılama bilgisi `aiMetadata` altında saklanır. Böylece model
+   * ağırlıkları yokken bile panelde anlamlı bir skor ve karar oluşur.
+   */
+  private async analyzeImage(input: {
+    buffer: Buffer;
+    mimeType: string;
+    extension: string;
+    metadata: ReportMetadata;
+    integrity: ReportIntegrity;
+    duplicateOf: string | null;
+  }): Promise<{
+    confidenceScore: number;
+    modelVersion: string;
+    aiMetadata: Record<string, unknown>;
+    evaluation: NewReportEvaluationInput;
+    severity: number | null;
+  }> {
+    const heuristic = heuristicScore({
+      violationType: input.metadata.violationType,
+      severity: input.metadata.severity ?? null,
+      description: input.metadata.description ?? null,
+      integrity: input.integrity,
+      duplicateOf: input.duplicateOf,
+    });
+
+    let ai: AnalysisResult | null = null;
+    let aiError: string | null = null;
+
+    if (this.deps.analyzer) {
+      try {
+        ai = await this.deps.analyzer.analyze({
+          buffer: input.buffer,
+          mimeType: input.mimeType,
+          filename: `report.${input.extension}`,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (this.analysisRequired) {
+          throw unavailable(`AI analizi tamamlanamadı: ${message}`, 'ANALYSIS_FAILED');
+        }
+        aiError = message.slice(0, 500);
+      }
+    }
+
+    const onnx = ai && ai.backend === 'onnx' ? ai : null;
+    const confidenceScore = onnx ? onnx.score : heuristic.score;
+
+    const reasons = [...heuristic.reasons];
+    if (onnx) {
+      reasons.push(`AI modeli kullanıldı (${onnx.modelVersion})`);
+    } else if (ai) {
+      reasons.push('AI modeli yüklü olmadığı için kural tabanlı skor kullanıldı');
+    } else if (aiError) {
+      reasons.push(`AI servisi kullanılamadı: ${aiError}`);
+    } else {
+      reasons.push('AI analizi kapalı; kural tabanlı skor kullanıldı');
+    }
+
+    const severity =
+      input.metadata.severity ?? ai?.detections[0]?.severity ?? null;
+
+    const aiMetadata: Record<string, unknown> = {
+      source: onnx ? 'ai' : 'heuristic',
+      backend: ai?.backend ?? null,
+      aiScore: ai?.score ?? null,
+      aiReason: ai?.reason ?? null,
+      modelVersion: ai?.modelVersion ?? null,
+      error: aiError,
+      reasons,
+      detectionCount: ai?.detections.length ?? 0,
+      detections: (ai?.detections ?? []).slice(0, 10).map((detection) => ({
+        label: detection.label,
+        violationType: detection.violationType,
+        confidence: detection.confidence,
+        overlapRatio: detection.overlapRatio,
+        severity: detection.severity,
+      })),
+      latencyMs: ai?.latencyMs ?? null,
+      analyzedAt: ai?.analyzedAt ?? this.now().toISOString(),
+    };
+
+    const evaluation: NewReportEvaluationInput = {
+      detectorName: onnx ? onnx.detectorName : 'heuristic-metadata',
+      detectorVersion: onnx ? onnx.modelVersion : 'v1',
+      segmenterName: ai?.segmenterName ?? null,
+      segmenterVersion: ai?.modelVersion ?? null,
+      detectorConfidence: ai?.metrics.topConfidence ?? null,
+      overlapRatio: ai?.metrics.overlapRatio ?? null,
+      walkableAreaRatio: ai?.segmentation.walkableAreaRatio ?? null,
+      detections: ai?.detections ?? [],
+      thresholds: ai
+        ? { auto_accept: ai.thresholds.autoAccept, manual_review: ai.thresholds.manualReview }
+        : {},
+      latencyMs: ai?.latencyMs ?? null,
+      score: confidenceScore,
+    };
+
+    return {
+      confidenceScore,
+      modelVersion: onnx ? onnx.modelVersion : ai ? `${ai.modelVersion}+heuristic` : 'heuristic-v1',
+      aiMetadata,
+      evaluation,
+      severity,
+    };
+  }
+
+  /**
    * Yüz/plaka anonimleştirmesi. Anonimleştirici yoksa veya başarısız olursa
    * `anonymizationRequired` açıkken ihbar reddedilir; aksi hâlde durum
    * `integrity.anonymization` altında `failed` olarak kaydedilir.
@@ -277,6 +419,7 @@ export class ReportsService {
   private async anonymize(
     buffer: Buffer,
     mimeType: string,
+    anonymizationRequired: boolean,
   ): Promise<{ image: AnonymizedImage | null; record: AnonymizationRecord }> {
     const anonymizer = this.deps.anonymizer;
 
@@ -299,7 +442,7 @@ export class ReportsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
-      if (this.anonymizationRequired) {
+      if (anonymizationRequired) {
         throw unavailable(
           `KVKK anonimleştirmesi tamamlanamadı: ${message}`,
           'ANONYMIZATION_FAILED',
@@ -311,6 +454,24 @@ export class ReportsService {
         record: { ...emptyAnonymization('failed'), error: message.slice(0, 500) },
       };
     }
+  }
+
+  private async resolvePrivacyPolicy(): Promise<{
+    retentionDays: number;
+    anonymizationRequired: boolean;
+  }> {
+    if (this.deps.privacyProvider) {
+      try {
+        return await this.deps.privacyProvider();
+      } catch {
+        // Politika okunamazsa env varsayılanlarıyla devam et; ihbar kaybı olmasın.
+      }
+    }
+
+    return {
+      retentionDays: this.retentionDays,
+      anonymizationRequired: this.anonymizationRequired,
+    };
   }
 
   async getReport(id: string): Promise<ReportDto> {

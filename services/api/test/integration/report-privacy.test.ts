@@ -62,7 +62,12 @@ describe('POST /v1/reports — KVKK ve EXIF (canlı yığın)', () => {
     expect(created.headers.get('location')).toBe(`/v1/reports/${created.body.data.id}`);
 
     const report = created.body.data;
-    expect(report.status).toBe('queued');
+    // Skor, kayıtla birlikte yazıldığı için DB tetikleyicisi durumu hemen
+    // otomatik karar bandına taşır; ihbar artık `queued` olarak kalmaz.
+    expect(['auto_approved', 'pending_review', 'auto_rejected']).toContain(report.status);
+    expect(Number(report.confidenceScore)).toBeGreaterThan(0);
+    expect(Number(report.confidenceScore)).toBeLessThanOrEqual(1);
+    expect(report.aiMetadata).toBeTruthy();
     expect(report.clientReportId).toBe(metadata.clientReportId);
     expect(report.anonymizedAt).toBeTruthy();
 
@@ -94,6 +99,37 @@ describe('POST /v1/reports — KVKK ve EXIF (canlı yığın)', () => {
       error: null,
     });
     expect(report.integrity.checkedAt).toBeTruthy();
+  });
+
+  it('değerlendirme tespitlerini ve eşiklerini JSONB olarak kalıcılaştırır', async () => {
+    // Regresyon: `pg` sürücüsü JS dizilerini PostgreSQL dizi literal'i olarak
+    // serileştirir. `detections` açıkça JSON.stringify edilmezse `$9::jsonb`
+    // "22P02 Expected \":\", but found \",\"" hatası verir.
+    const { rows } = await getPool().query<{
+      detections: unknown;
+      thresholds: unknown;
+      outcome: string;
+    }>(
+      `SELECT detections, thresholds, outcome
+         FROM report_evaluations
+        WHERE report_id = $1`,
+      [created.body.data.id],
+    );
+
+    expect(rows).toHaveLength(1);
+    const evaluation = rows[0];
+    expect(Array.isArray(evaluation?.detections)).toBe(true);
+    expect(evaluation?.thresholds).toBeTypeOf('object');
+    expect(evaluation?.thresholds).not.toBeNull();
+    expect(Array.isArray(evaluation?.thresholds)).toBe(false);
+    expect(evaluation?.outcome).toBeTruthy();
+
+    const { rows: reportRows } = await getPool().query<{ ai_metadata: unknown }>(
+      `SELECT ai_metadata FROM reports WHERE id = $1`,
+      [created.body.data.id],
+    );
+    expect(reportRows[0]?.ai_metadata).toBeTypeOf('object');
+    expect(Array.isArray(reportRows[0]?.ai_metadata)).toBe(false);
   });
 
   it('orijinal ve anonimleştirilmiş görselleri ayrı kayıt olarak döndürür', async () => {

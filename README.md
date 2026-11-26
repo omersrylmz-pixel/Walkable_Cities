@@ -280,7 +280,7 @@ Taban adres: `http://localhost:3001/v1`
 | Uç | Açıklama |
 | --- | --- |
 | `POST /reports` | Yeni ihbar (multipart: `report` JSON + `image` dosyası) |
-| `GET /reports` | Sayfalı liste — `status`, `violationType`, `limit`, `offset` |
+| `GET /reports` | Sayfalı liste — `status`, `violationType`, `from`/`to` (ISO-8601), `sort`, `minScore`, `maxScore`, `limit`, `offset` |
 | `GET /reports/:id` | Tek ihbar, görselleriyle birlikte |
 | `GET /reports/:id/images/:kind` | Görseli ikili olarak döndürür (`original`, `anonymized`, `thumbnail`) |
 | `GET /meta` | İhlal türleri ve karar eşikleri |

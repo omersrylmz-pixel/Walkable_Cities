@@ -112,6 +112,10 @@ export interface ListReportsQuery {
   sort?: ListSort;
   minScore?: number;
   maxScore?: number;
+  /** ISO-8601 alt sınır (dahil). */
+  from?: string;
+  /** ISO-8601 üst sınır (hariç). */
+  to?: string;
   limit?: number;
   offset?: number;
 }

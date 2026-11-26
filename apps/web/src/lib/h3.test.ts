@@ -1,7 +1,7 @@
 import { cellToBoundary, latLngToCell } from 'h3-js';
 import { describe, expect, it } from 'vitest';
 
-import { buildH3Features, h3MaxCount } from './h3';
+import { buildH3Features, buildH3Scale, h3MaxCount } from './h3';
 
 describe('H3 agregasyonu', () => {
   it('aynı hücredeki noktaları tek özellikte toplar', () => {
@@ -60,5 +60,41 @@ describe('H3 agregasyonu', () => {
     const collection = buildH3Features([]);
     expect(collection.features).toHaveLength(0);
     expect(h3MaxCount(collection)).toBe(0);
+  });
+});
+
+describe('H3 renk ölçeği', () => {
+  it('MapLibre için kesin artan ve tekil duraklar üretir', () => {
+    const scale = buildH3Scale([1, 1, 1, 2, 2, 3, 4, 8, 15, 30]);
+
+    expect(scale.maxCount).toBe(30);
+    expect(scale.stops.length).toBeGreaterThanOrEqual(2);
+
+    for (let index = 1; index < scale.stops.length; index += 1) {
+      expect(scale.stops[index][0]).toBeGreaterThan(scale.stops[index - 1][0]);
+    }
+  });
+
+  it('tek değerli veride bile geçerli iki durak döndürür', () => {
+    const scale = buildH3Scale([1, 1, 1]);
+
+    expect(scale.maxCount).toBe(1);
+    expect(scale.stops.map(([count]) => count)).toEqual([1, 2]);
+    expect(scale.legend.at(-1)?.label).toBe('1+');
+  });
+
+  it('lejantın son etiketi üst sınırı N+ olarak gösterir', () => {
+    const scale = buildH3Scale([1, 1, 2, 5, 9]);
+
+    expect(scale.legend.at(-1)?.label).toBe('9+');
+    expect(scale.legend[0]?.count).toBe(1);
+  });
+
+  it('boş veride sıfır üst sınır ve boş lejant döndürür', () => {
+    const scale = buildH3Scale([]);
+
+    expect(scale.maxCount).toBe(0);
+    expect(scale.legend).toHaveLength(0);
+    expect(scale.stops.length).toBeGreaterThanOrEqual(2);
   });
 });

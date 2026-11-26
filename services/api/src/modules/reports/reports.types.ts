@@ -164,6 +164,10 @@ export interface ListReportsQuery {
   sort?: ListSort;
   minScore?: number;
   maxScore?: number;
+  /** ISO-8601; yalnızca bu andan sonra yakalanan ihbarlar (dahil). */
+  from?: string;
+  /** ISO-8601; yalnızca bu andan önce yakalanan ihbarlar (hariç). */
+  to?: string;
   limit: number;
   offset: number;
 }

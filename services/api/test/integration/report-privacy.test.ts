@@ -132,6 +132,26 @@ describe('POST /v1/reports — KVKK ve EXIF (canlı yığın)', () => {
     expect(Array.isArray(reportRows[0]?.ai_metadata)).toBe(false);
   });
 
+  it('zaman aralığı filtresini sunucu tarafında uygular', async () => {
+    const capturedAt = new Date(created.body.data.capturedAt).getTime();
+    const before = new Date(capturedAt - 60_000).toISOString();
+    const after = new Date(capturedAt + 60_000).toISOString();
+
+    const inside = await getJson(
+      `/v1/reports?from=${encodeURIComponent(before)}&to=${encodeURIComponent(after)}&limit=100`,
+    );
+    expect(inside.status, inside.text).toBe(200);
+    expect(
+      (inside.body.data as Array<{ id: string }>).some((item) => item.id === created.body.data.id),
+    ).toBe(true);
+
+    const outside = await getJson(`/v1/reports?from=${encodeURIComponent(after)}&limit=100`);
+    expect(outside.status, outside.text).toBe(200);
+    expect(
+      (outside.body.data as Array<{ id: string }>).some((item) => item.id === created.body.data.id),
+    ).toBe(false);
+  });
+
   it('orijinal ve anonimleştirilmiş görselleri ayrı kayıt olarak döndürür', async () => {
     const images = created.body.data.images as Array<{
       kind: string;

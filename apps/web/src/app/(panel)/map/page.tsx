@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { ReportMap, type MapPoint, type ServerH3 } from '@/components/map/report-map';
-import { getAllReportSummaries, getH3Analytics, listReports } from '@/lib/api-client';
+import { getAllReportSummaries, getH3Analytics } from '@/lib/api-client';
 import { canReview } from '@/lib/auth/roles';
 import { requireUser } from '@/lib/auth/server';
 import { VIOLATION_LABELS, formatNumber, formatScore } from '@/lib/format';
@@ -80,27 +80,29 @@ export default async function MapPage({
   const violationType = pickViolation(first(params.violationType));
 
   let points: MapPoint[] = [];
-  let total = 0;
+  let filteredTotal = 0;
   let analytics: Awaited<ReturnType<typeof getH3Analytics>> | null = null;
 
   try {
-    const [summary, reports, h3] = await Promise.all([
-      listReports({ limit: 1 }),
-      getAllReportSummaries(MAX_POINTS),
+    // Zaman aralığı ve ihlal türü sunucu tarafında uygulanır; böylece 2.000
+    // kayıt sınırı dolmadan önce alakasız kayıtlar elenmez.
+    const start = rangeStart(range, new Date());
+    const [reports, h3] = await Promise.all([
+      getAllReportSummaries(MAX_POINTS, {
+        violationType,
+        from: start?.toISOString(),
+      }),
       getH3Analytics({ resolution, range, violationType }),
     ]);
 
-    total = summary.pagination.total;
     analytics = h3;
+    filteredTotal = h3.totalReports;
 
-    const now = new Date();
-    const start = rangeStart(range, now);
     points = reports
       .filter(
         (report) =>
-          Number.isFinite(report.location.latitude) && Number.isFinite(report.location.longitude) &&
-          (!violationType || report.violationType === violationType) &&
-          (!start || new Date(report.capturedAt).getTime() >= start.getTime()),
+          Number.isFinite(report.location.latitude) &&
+          Number.isFinite(report.location.longitude),
       )
       .map((report) => ({
         id: report.id,
@@ -152,9 +154,9 @@ export default async function MapPage({
         description="Nokta kümeleme ve sunucu tarafında H3 yoğunluk görünümü. Filtreler API'de uygulanır."
         actions={
           <div className="flex items-center gap-2">
-            <Badge variant="info">{points.length} nokta</Badge>
-            {total > points.length ? (
-              <Badge variant="outline">son {MAX_POINTS} kayıt</Badge>
+            <Badge variant="info">{formatNumber(points.length)} nokta</Badge>
+            {filteredTotal > MAX_POINTS ? (
+              <Badge variant="outline">son {formatNumber(MAX_POINTS)} kayıt</Badge>
             ) : null}
           </div>
         }

@@ -16,7 +16,7 @@ import { Layers, Loader2, MapPin, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { buildH3Features, h3MaxCount } from '@/lib/h3';
+import { buildH3Features, buildH3Scale } from '@/lib/h3';
 import { STATUS_LABELS, VIOLATION_LABELS, formatDateTime, formatScore } from '@/lib/format';
 import type { ReportStatus, ViolationType } from '@/lib/types';
 
@@ -180,29 +180,58 @@ export function ReportMap({
     [visiblePoints],
   );
 
+  // Yedek istemci agregasyonu da yük testindeki sentetik noktaları kullanmaz;
+  // H3 her koşulda gerçek ihbarları temsil eder.
   const clientH3 = useMemo(
-    () => buildH3Features(visiblePoints, H3_MAP_RESOLUTION),
-    [visiblePoints],
+    () => buildH3Features(loadTest ? points : visiblePoints, H3_MAP_RESOLUTION),
+    [loadTest, points, visiblePoints],
   );
-  const clientH3Max = useMemo(() => h3MaxCount(clientH3), [clientH3]);
 
-  // Yüklenen H3 verisi varsa sunucunun filtrelenmiş agregasyonu kullanılır;
-  // yoksa (veya yük testi açıkken) noktalardan istemci tarafında yeniden hesaplanır.
-  const useServerH3 = Boolean(h3) && !loadTest;
-  const activeH3 = useServerH3 && h3 ? h3.featureCollection : clientH3;
-  const activeH3Max = useServerH3 && h3 ? h3.maxCount : clientH3Max;
-  const activeResolution = useServerH3 && h3 ? h3.resolution : H3_MAP_RESOLUTION;
+  // Sunucu H3 verisi varsa her zaman onu kullan. Sentetik yük testi yalnızca
+  // nokta kümelemesini sınar; H3 katmanını kirletmez.
+  const useServerH3 = Boolean(h3);
+  const activeH3 = h3 ? h3.featureCollection : clientH3;
+  const activeResolution = h3 ? h3.resolution : H3_MAP_RESOLUTION;
 
-  /** Choropleth renk durakları (lejantla aynı değerler). */
-  const h3Stops = useMemo(() => {
-    const max = Math.max(2, activeH3Max);
-    return {
-      min: 1,
-      q1: Math.max(2, Math.round(max * 0.25)),
-      q2: Math.max(3, Math.round(max * 0.6)),
-      max,
-    };
-  }, [activeH3Max]);
+  /** Yoğunluk ölçeği: verinin çeyrekliklerinden üretilir (lejantla aynı). */
+  const h3Scale = useMemo(
+    () => buildH3Scale(activeH3.features.map((feature) => feature.properties.count)),
+    [activeH3],
+  );
+
+  /** Düşük yoğunluklu hücreler saydam kalsın; altlık harita okunabilsin. */
+  const h3Opacity = useMemo(
+    () =>
+      h3Scale.maxCount <= 1
+        ? 0.55
+        : ([
+            'interpolate',
+            ['linear'],
+            ['get', 'count'],
+            1,
+            0.35,
+            h3Scale.maxCount,
+            0.85,
+          ] as unknown as ExpressionSpecification),
+    [h3Scale.maxCount],
+  );
+
+  const h3Color = useMemo<ExpressionSpecification>(
+    () =>
+      [
+        'interpolate',
+        ['linear'],
+        ['get', 'count'],
+        ...h3Scale.stops.flat(),
+      ] as unknown as ExpressionSpecification,
+    [h3Scale],
+  );
+
+  // Yük testi açıldığında nokta görünümüne dön; aksi hâlde kullanıcı sentetik
+  // verinin H3 katmanına karıştığını sanabilir.
+  useEffect(() => {
+    if (loadTest) setMode('points');
+  }, [loadTest]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -226,7 +255,7 @@ export function ReportMap({
     mapRef.current = map;
     map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
+    map.addControl(new ScaleControl({ unit: 'metric' }), 'top-left');
 
     let styleLoaded = false;
 
@@ -327,7 +356,7 @@ export function ReportMap({
             60,
             '#991b1b',
           ],
-          'fill-opacity': 0.62,
+          'fill-opacity': 0.55,
         },
       });
 
@@ -337,6 +366,16 @@ export function ReportMap({
         source: 'h3',
         layout: { visibility: 'none' },
         paint: { 'line-color': '#7c2d12', 'line-width': 1, 'line-opacity': 0.55 },
+      });
+
+      // Fareyle üzerine gelinen hücreyi vurgula; tıklamadan önce bağlam verir.
+      map.addLayer({
+        id: 'h3-hover',
+        type: 'line',
+        source: 'h3',
+        layout: { visibility: 'none' },
+        filter: ['==', ['get', 'cell'], ''],
+        paint: { 'line-color': '#0f172a', 'line-width': 2.5, 'line-opacity': 0.9 },
       });
 
       map.on('click', 'clusters', (event) => {
@@ -426,6 +465,19 @@ export function ReportMap({
           .addTo(map);
       });
 
+      map.on('mousemove', 'h3-fill', (event) => {
+        const cell = String(event.features?.[0]?.properties?.cell ?? '');
+        if (map.getLayer('h3-hover')) {
+          map.setFilter('h3-hover', ['==', ['get', 'cell'], cell]);
+        }
+      });
+
+      map.on('mouseleave', 'h3-fill', () => {
+        if (map.getLayer('h3-hover')) {
+          map.setFilter('h3-hover', ['==', ['get', 'cell'], '']);
+        }
+      });
+
       for (const layer of ['clusters', 'unclustered-point', 'h3-fill']) {
         map.on('mouseenter', layer, () => {
           map.getCanvas().style.cursor = 'pointer';
@@ -457,22 +509,14 @@ export function ReportMap({
     if (!map || !ready) return;
     const source = map.getSource('h3') as GeoJSONSource | undefined;
     source?.setData(activeH3 as unknown as GeoJSON.FeatureCollection);
-    if (map.getLayer('h3-fill') && activeH3Max >= 2) {
-      map.setPaintProperty('h3-fill', 'fill-color', [
-        'interpolate',
-        ['linear'],
-        ['get', 'count'],
-        h3Stops.min,
-        '#fef3c7',
-        h3Stops.q1,
-        '#fbbf24',
-        h3Stops.q2,
-        '#ea580c',
-        h3Stops.max,
-        '#991b1b',
-      ]);
+    if (map.getLayer('h3-fill')) {
+      map.setPaintProperty('h3-fill', 'fill-color', h3Color);
+      map.setPaintProperty('h3-fill', 'fill-opacity', h3Opacity);
     }
-  }, [activeH3, activeH3Max, h3Stops, ready]);
+    if (map.getLayer('h3-hover')) {
+      map.setFilter('h3-hover', ['==', ['get', 'cell'], '']);
+    }
+  }, [activeH3, h3Color, h3Opacity, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -483,12 +527,18 @@ export function ReportMap({
         map.setLayoutProperty(layer, 'visibility', showPoints ? 'visible' : 'none');
       }
     }
-    for (const layer of ['h3-fill', 'h3-outline']) {
+    for (const layer of ['h3-fill', 'h3-outline', 'h3-hover']) {
       if (map.getLayer(layer)) {
         map.setLayoutProperty(layer, 'visibility', showPoints ? 'none' : 'visible');
       }
     }
   }, [mode, ready]);
+
+  const legendGradient = `linear-gradient(90deg, ${(
+    h3Scale.legend.length > 0
+      ? h3Scale.legend.map((item) => item.color)
+      : ['#fef3c7', '#7f1d1d']
+  ).join(', ')})`;
 
   return (
     <div className="space-y-3">
@@ -509,6 +559,12 @@ export function ReportMap({
             size="sm"
             variant={mode === 'h3' ? 'secondary' : 'ghost'}
             aria-pressed={mode === 'h3'}
+            disabled={loadTest}
+            title={
+              loadTest
+                ? 'Yük testi açıkken H3 katmanı kullanılamaz; önce test verisini kapatın.'
+                : undefined
+            }
             onClick={() => setMode('h3')}
           >
             <Layers aria-hidden="true" className="h-4 w-4" />
@@ -528,9 +584,17 @@ export function ReportMap({
         </Button>
 
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          {loadTest ? 'Sentetik yük testi: 10.000 nokta' : `${visiblePoints.length} ihbar`} ·{' '}
-          {activeH3.features.length} H3 hücresi · res {activeResolution}
-          {useServerH3 ? ' · sunucu tarafında hesaplandı' : ' · istemcide hesaplandı'}
+          {loadTest ? (
+            <>
+              Sentetik yük testi: 10.000 nokta · H3 katmanı sunucu verisinde kalır
+            </>
+          ) : (
+            <>
+              {visiblePoints.length} ihbar · {activeH3.features.length} H3 hücresi · res{' '}
+              {activeResolution}
+              {useServerH3 ? ' · sunucu tarafında hesaplandı' : ' · istemcide hesaplandı'}
+            </>
+          )}
         </p>
       </div>
 
@@ -557,6 +621,17 @@ export function ReportMap({
           </div>
         ) : null}
 
+        {mode === 'h3' && ready && activeH3.features.length === 0 ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+            <div className="rounded-md border border-border bg-card/95 px-4 py-3 text-center text-sm shadow-sm">
+              <p className="font-medium">Bu filtreyle eşleşen H3 hücresi yok.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Zaman aralığını genişletmeyi veya ihlal türü filtresini kaldırmayı deneyin.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         <div className="pointer-events-none absolute bottom-4 left-4 rounded-md border border-border bg-card/95 px-3 py-2 text-xs shadow-sm">
           {mode === 'points' ? (
             <ul className="space-y-1">
@@ -578,25 +653,29 @@ export function ReportMap({
               <div className="flex items-center gap-1">
                 <span>az</span>
                 <span
-                  className="h-2 w-24 rounded-sm bg-gradient-to-r from-amber-200 via-orange-500 to-red-800"
+                  className="h-2 w-24 rounded-sm"
+                  style={{ background: legendGradient }}
                   aria-hidden="true"
                 />
                 <span>çok</span>
               </div>
-              <ul className="flex justify-between text-[10px] text-muted-foreground">
-                <li>{h3Stops.min}</li>
-                <li>{h3Stops.q1}</li>
-                <li>{h3Stops.q2}</li>
-                <li>{h3Stops.max}+</li>
+              <ul className="flex justify-between gap-3 text-[10px] text-muted-foreground">
+                {h3Scale.legend.map((item) => (
+                  <li key={`${item.count}-${item.color}`}>{item.label}</li>
+                ))}
               </ul>
+              <p className="text-[10px] text-muted-foreground">
+                {activeH3.features.length} hücre · detay için tıklayın
+              </p>
             </div>
           )}
         </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Nokta katmanı MapLibre kümelemesi kullanır; 10.000 nokta testiyle kümeleme performansı
-        doğrulanabilir. H3 katmanı varsayılan olarak API tarafında ({' '}
+        Nokta katmanı MapLibre kümelemesi kullanır; 10.000 nokta testi yalnızca nokta katmanını
+        etkiler ve H3 yoğunluğu her zaman filtrelenmiş gerçek veriden gelir. H3 katmanı API
+        tarafında ({' '}
         <code className="rounded bg-muted px-1">GET /v1/analytics/h3</code> ) çözünürlük, zaman
         aralığı ve ihlal türü filtreleriyle hesaplanır; API'ye ulaşılamazsa noktalardan istemcide
         yeniden hesaplanır.

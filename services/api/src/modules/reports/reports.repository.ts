@@ -176,6 +176,16 @@ export class PgReportsRepository implements ReportsRepository {
       conditions.push(`r.confidence_score <= $${params.length}`);
     }
 
+    if (query.from) {
+      params.push(query.from);
+      conditions.push(`r.captured_at >= $${params.length}::timestamptz`);
+    }
+
+    if (query.to) {
+      params.push(query.to);
+      conditions.push(`r.captured_at < $${params.length}::timestamptz`);
+    }
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await this.pool.query<{ total: string }>(

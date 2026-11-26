@@ -18,6 +18,7 @@ import type {
   SystemAuditEntry,
   SystemAuditPage,
   SystemSettings,
+  ViolationType,
   ViolationTypeMeta,
 } from './types';
 
@@ -209,6 +210,8 @@ export async function listReports(
       sort: query.sort,
       minScore: query.minScore,
       maxScore: query.maxScore,
+      from: query.from,
+      to: query.to,
       limit: query.limit ?? 20,
       offset: query.offset ?? 0,
     })}`,
@@ -274,19 +277,28 @@ export async function applyDecision(
 /**
  * Harita için sayfalı listeyi toplar. API tek istekte en çok 100 kayıt döndürür;
  * 10.000 nokta hedefi için üst sınır yapılandırılabilir (varsayılan 2.000).
+ *
+ * `violationType`, `from` ve `to` sunucu tarafında uygulanır; böylece 2.000
+ * kayıt sınırına takılmadan önce yanlış zaman aralığındaki kayıtlar elenmez.
  */
-export async function getAllReportSummaries(maxRecords = 2_000): Promise<ReportSummaryDto[]> {
+export async function getAllReportSummaries(
+  maxRecords = 2_000,
+  filters: { violationType?: ViolationType; from?: string; to?: string } = {},
+): Promise<ReportSummaryDto[]> {
   const pageSize = 100;
   const maxPages = Math.max(1, Math.ceil(maxRecords / pageSize));
+  const baseQuery = { ...filters, sort: 'recent' as const };
 
-  const first = await listReports({ limit: pageSize, offset: 0, sort: 'recent' });
+  const first = await listReports({ ...baseQuery, limit: pageSize, offset: 0 });
   const items = [...first.items];
   const pages = Math.min(maxPages, Math.ceil(first.pagination.total / pageSize));
 
   if (pages > 1) {
     const requests: Promise<{ items: ReportSummaryDto[]; pagination: Pagination }>[] = [];
     for (let page = 1; page < pages; page += 1) {
-      requests.push(listReports({ limit: pageSize, offset: page * pageSize, sort: 'recent' }));
+      requests.push(
+        listReports({ ...baseQuery, limit: pageSize, offset: page * pageSize }),
+      );
     }
     const results = await Promise.all(requests);
     for (const result of results) items.push(...result.items);

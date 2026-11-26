@@ -2,6 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { flushQueue } from '@/lib/queue';
@@ -11,13 +12,24 @@ export default function RootLayout() {
     // Açılışta ve bağlantı geldiğinde bekleyen ihbarları gönder.
     void flushQueue();
 
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    const unsubscribeNet = NetInfo.addEventListener((state) => {
       if (state.isConnected && state.isInternetReachable !== false) {
         void flushQueue();
       }
     });
 
-    return unsubscribe;
+    // Uygulama arka plandan döndüğünde de dene; kullanıcı kuyruğu elle
+    // göndermek zorunda kalmasın.
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void flushQueue();
+      }
+    });
+
+    return () => {
+      unsubscribeNet();
+      appState.remove();
+    };
   }, []);
 
   return (

@@ -14,6 +14,22 @@ export interface FlushSummary {
   skipped: number;
 }
 
+export interface QueueStats {
+  total: number;
+  pending: number;
+  uploading: number;
+  failed: number;
+}
+
+/** Kuyruk ekranındaki rozetler için durum dağılımını hesaplar. */
+export function summarizeQueue(items: readonly QueueItem[]): QueueStats {
+  const stats: QueueStats = { total: items.length, pending: 0, uploading: 0, failed: 0 };
+  for (const item of items) {
+    stats[item.status] += 1;
+  }
+  return stats;
+}
+
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
@@ -98,6 +114,30 @@ export async function retryItem(clientReportId: string): Promise<void> {
     attempts: 0,
     lastError: null,
   });
+}
+
+/**
+ * Otomatik deneme hakkı dolmuş tüm kayıtları yeniden denenebilir yapar.
+ * Tek tek "tekrar dene"ye basmaya gerek kalmadan toplu kurtarma sağlar.
+ * Etkilenen kayıt sayısını döndürür.
+ */
+export async function retryFailedItems(): Promise<number> {
+  const items = await loadQueue();
+  let touched = 0;
+
+  const next = items.map((item) => {
+    if (item.status !== 'failed') {
+      return item;
+    }
+    touched += 1;
+    return { ...item, status: 'pending' as const, retryable: true, attempts: 0, lastError: null };
+  });
+
+  if (touched > 0) {
+    await persist(next);
+  }
+
+  return touched;
 }
 
 export async function clearQueue(): Promise<void> {

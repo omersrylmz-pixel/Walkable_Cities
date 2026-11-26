@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,13 @@ import {
 
 import { useQueue } from '@/hooks/useQueue';
 import { formatAccuracy, formatDateTime } from '@/lib/format';
-import { flushQueue, removeItem, retryItem } from '@/lib/queue';
+import {
+  flushQueue,
+  removeItem,
+  retryFailedItems,
+  retryItem,
+  summarizeQueue,
+} from '@/lib/queue';
 import { violationLabel, type QueueItem, type QueueStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<QueueStatus, string> = {
@@ -25,6 +31,8 @@ export default function QueueScreen() {
   const { items, loading } = useQueue();
   const [flushing, setFlushing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const stats = useMemo(() => summarizeQueue(items), [items]);
+  const autoFlushStarted = useRef(false);
 
   const sendAll = useCallback(async () => {
     if (flushing) {
@@ -43,6 +51,24 @@ export default function QueueScreen() {
       setFlushing(false);
     }
   }, [flushing]);
+
+  // Ekran açıldığında bekleyen kayıt varsa bir kez otomatik gönder.
+  useEffect(() => {
+    if (loading || autoFlushStarted.current) {
+      return;
+    }
+    autoFlushStarted.current = true;
+    if (stats.pending > 0) {
+      void sendAll();
+    }
+  }, [loading, sendAll, stats.pending]);
+
+  const retryAllFailed = useCallback(async () => {
+    const count = await retryFailedItems();
+    if (count > 0) {
+      await sendAll();
+    }
+  }, [sendAll]);
 
   const confirmDelete = useCallback((item: QueueItem) => {
     const remove = (): void => {
@@ -73,14 +99,23 @@ export default function QueueScreen() {
     <View style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.headerText}>
-          {items.length === 0
+          {stats.total === 0
             ? 'Bekleyen ihbar yok.'
-            : `${items.length} kayıt cihazda saklanıyor.`}
+            : `${stats.pending} bekleyen · ${stats.failed} hatalı · ${stats.total} kayıt cihazda saklanıyor.`}
         </Text>
+        {stats.failed > 0 ? (
+          <Pressable
+            onPress={() => void retryAllFailed()}
+            disabled={flushing}
+            style={[styles.retryAllButton, flushing && styles.disabled]}
+          >
+            <Text style={styles.retryAllText}>Hatalıları tekrar dene ({stats.failed})</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => void sendAll()}
-          disabled={flushing || items.length === 0}
-          style={[styles.sendButton, (flushing || items.length === 0) && styles.disabled]}
+          disabled={flushing || stats.total === 0}
+          style={[styles.sendButton, (flushing || stats.total === 0) && styles.disabled]}
         >
           <Text style={styles.sendText}>{flushing ? 'Gönderiliyor…' : 'Tümünü Gönder'}</Text>
         </Pressable>
@@ -166,6 +201,19 @@ const styles = StyleSheet.create({
   headerText: {
     color: '#e2e8f0',
     fontSize: 14,
+  },
+  retryAllButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#b45309',
+    backgroundColor: 'rgba(180, 83, 9, 0.16)',
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  retryAllText: {
+    color: '#fbbf24',
+    fontWeight: '700',
+    fontSize: 13,
   },
   sendButton: {
     backgroundColor: '#2563eb',

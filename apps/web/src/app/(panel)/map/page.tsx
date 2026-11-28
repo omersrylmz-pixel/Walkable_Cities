@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { ReportMap, type MapPoint, type ServerH3 } from '@/components/map/report-map';
-import { getAllReportSummaries, getH3Analytics } from '@/lib/api-client';
+import { getAllReportSummaries, getAllReportSummariesForStatuses, getH3Analytics } from '@/lib/api-client';
 import { canReview } from '@/lib/auth/roles';
 import { requireUser } from '@/lib/auth/server';
 import { VIOLATION_LABELS, formatNumber, formatScore } from '@/lib/format';
@@ -17,6 +17,8 @@ import {
   VIOLATION_TYPES,
   type AnalyticsRange,
   type AnalyticsResolution,
+  type AnalyticsStatusGroup,
+  type ReportStatus,
   type ViolationType,
 } from '@/lib/types';
 
@@ -39,6 +41,17 @@ const RESOLUTIONS: Array<{ value: AnalyticsResolution; label: string }> = [
   { value: 9, label: 'Res 9 · mahalle ölçeği (~0.1 km²)' },
 ];
 
+/** Panelde sunulan durum grupları ve API'nin beklediği ham durumlar. */
+const STATUS_GROUPS: Array<{
+  value: AnalyticsStatusGroup;
+  label: string;
+  statuses: ReportStatus[];
+}> = [
+  { value: 'approved', label: 'Onaylanan', statuses: ['auto_approved', 'approved'] },
+  { value: 'pending', label: 'İncelemede', statuses: ['pending_review'] },
+  { value: 'rejected', label: 'Reddedilen', statuses: ['auto_rejected', 'rejected'] },
+];
+
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -52,6 +65,12 @@ function pickRange(value: string | undefined): AnalyticsRange {
 function pickResolution(value: string | undefined): AnalyticsResolution {
   const parsed = Number(value);
   return parsed === 7 || parsed === 8 || parsed === 9 ? parsed : 8;
+}
+
+function pickStatusGroup(value: string | undefined): AnalyticsStatusGroup | undefined {
+  return STATUS_GROUPS.some((group) => group.value === value)
+    ? (value as AnalyticsStatusGroup)
+    : undefined;
 }
 
 function pickViolation(value: string | undefined): ViolationType | undefined {
@@ -78,21 +97,31 @@ export default async function MapPage({
   const resolution = pickResolution(first(params.resolution));
   const range = pickRange(first(params.range));
   const violationType = pickViolation(first(params.violationType));
+  const statusGroup = pickStatusGroup(first(params.statusGroup));
+  const statuses = statusGroup
+    ? STATUS_GROUPS.find((group) => group.value === statusGroup)?.statuses
+    : undefined;
 
   let points: MapPoint[] = [];
   let filteredTotal = 0;
   let analytics: Awaited<ReturnType<typeof getH3Analytics>> | null = null;
 
   try {
-    // Zaman aralığı ve ihlal türü sunucu tarafında uygulanır; böylece 2.000
-    // kayıt sınırı dolmadan önce alakasız kayıtlar elenmez.
+    // Zaman aralığı, ihlal türü ve durum grubu sunucu tarafında uygulanır;
+    // böylece 2.000 kayıt sınırı dolmadan önce alakasız kayıtlar elenmez.
     const start = rangeStart(range, new Date());
     const [reports, h3] = await Promise.all([
-      getAllReportSummaries(MAX_POINTS, {
-        violationType,
-        from: start?.toISOString(),
-      }),
-      getH3Analytics({ resolution, range, violationType }),
+      statuses
+        ? getAllReportSummariesForStatuses(
+            MAX_POINTS,
+            { violationType, from: start?.toISOString() },
+            statuses,
+          )
+        : getAllReportSummaries(MAX_POINTS, {
+            violationType,
+            from: start?.toISOString(),
+          }),
+      getH3Analytics({ resolution, range, violationType, statusGroup }),
     ]);
 
     analytics = h3;
@@ -145,7 +174,7 @@ export default async function MapPage({
       }
     : null;
 
-  const hasFilter = Boolean(violationType) || range !== '30d' || resolution !== 8;
+  const hasFilter = Boolean(violationType || statusGroup) || range !== '30d' || resolution !== 8;
 
   return (
     <>
@@ -170,7 +199,7 @@ export default async function MapPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form method="get" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <form method="get" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div className="space-y-2">
               <Label htmlFor="resolution">Çözünürlük</Label>
               <Select id="resolution" name="resolution" defaultValue={String(resolution)}>
@@ -188,6 +217,18 @@ export default async function MapPage({
                 {RANGES.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="statusGroup">Durum</Label>
+              <Select id="statusGroup" name="statusGroup" defaultValue={statusGroup ?? ''}>
+                <option value="">Tümü</option>
+                {STATUS_GROUPS.map((group) => (
+                  <option key={group.value} value={group.value}>
+                    {group.label}
                   </option>
                 ))}
               </Select>

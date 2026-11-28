@@ -1,9 +1,11 @@
 import type {
   AnalyticsRange,
   AnalyticsResolution,
+  AnalyticsStatusGroup,
   H3AnalyticsRepository,
   H3AnalyticsResult,
 } from './analytics.types.js';
+import { STATUS_GROUP_STATUSES } from './analytics.types.js';
 import type { ViolationType } from '../reports/reports.types.js';
 
 export interface AnalyticsServiceDeps {
@@ -29,6 +31,7 @@ export class AnalyticsService {
     resolution: AnalyticsResolution;
     range: AnalyticsRange;
     violationType?: ViolationType;
+    statusGroup?: AnalyticsStatusGroup;
   }): Promise<H3AnalyticsResult> {
     const now = this.now();
     const from =
@@ -39,6 +42,7 @@ export class AnalyticsService {
     const result = await this.deps.repository.h3Density({
       resolution: input.resolution,
       violationType: input.violationType,
+      statuses: input.statusGroup ? STATUS_GROUP_STATUSES[input.statusGroup] : undefined,
       from,
       to: now,
     });

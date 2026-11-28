@@ -205,6 +205,8 @@ export interface SettingsMutationResult {
 
 export type AnalyticsRange = '7d' | '30d' | '90d' | '180d' | 'all';
 export type AnalyticsResolution = 7 | 8 | 9;
+/** Harita filtresinde sunulan anlaşılır durum grupları. */
+export type AnalyticsStatusGroup = 'approved' | 'pending' | 'rejected';
 
 export interface H3CellFeature {
   cell: string;

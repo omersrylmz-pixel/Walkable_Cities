@@ -56,4 +56,42 @@ describe('AnalyticsService', () => {
 
     expect(captured?.from).toBeUndefined();
   });
+
+  it('durum grubunu ham durum listesine çevirir', async () => {
+    let captured: { statuses?: string[] } | undefined;
+
+    const service = new AnalyticsService({
+      repository: {
+        h3Density: async (query) => {
+          captured = { statuses: query.statuses };
+          return { cells: [], totalReports: 0, avgScore: null, topAreas: [] };
+        },
+      },
+      now: () => new Date('2026-11-25T12:00:00.000Z'),
+    });
+
+    await service.h3Density({ resolution: 8, range: '30d', statusGroup: 'approved' });
+    expect(captured?.statuses).toEqual(['auto_approved', 'approved']);
+
+    await service.h3Density({ resolution: 8, range: '30d', statusGroup: 'pending' });
+    expect(captured?.statuses).toEqual(['pending_review']);
+  });
+
+  it('durum grubu verilmezse filtre göndermez', async () => {
+    let captured: { statuses?: string[] } | undefined;
+
+    const service = new AnalyticsService({
+      repository: {
+        h3Density: async (query) => {
+          captured = { statuses: query.statuses };
+          return { cells: [], totalReports: 0, avgScore: null, topAreas: [] };
+        },
+      },
+      now: () => new Date('2026-11-25T12:00:00.000Z'),
+    });
+
+    await service.h3Density({ resolution: 8, range: '30d' });
+
+    expect(captured?.statuses).toBeUndefined();
+  });
 });

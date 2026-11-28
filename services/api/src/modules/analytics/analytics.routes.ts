@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { unprocessable } from '../../shared/errors.js';
 import { VIOLATION_TYPES } from '../reports/reports.types.js';
 import type { AnalyticsService } from './analytics.service.js';
-import { ANALYTICS_RANGES, ANALYTICS_RESOLUTIONS } from './analytics.types.js';
+import {
+  ANALYTICS_RANGES,
+  ANALYTICS_RESOLUTIONS,
+  ANALYTICS_STATUS_GROUPS,
+} from './analytics.types.js';
 
 export interface AnalyticsRoutesOptions {
   service: AnalyticsService;
@@ -21,6 +25,7 @@ const h3QuerySchema = z.object({
     .default(7),
   range: z.enum(ANALYTICS_RANGES).default('90d'),
   violationType: z.enum(VIOLATION_TYPES).optional(),
+  statusGroup: z.enum(ANALYTICS_STATUS_GROUPS).optional(),
 });
 
 export const analyticsRoutes: FastifyPluginAsync<AnalyticsRoutesOptions> = async (app, opts) => {
@@ -44,6 +49,7 @@ export const analyticsRoutes: FastifyPluginAsync<AnalyticsRoutesOptions> = async
       resolution: parsed.data.resolution as 7 | 8 | 9,
       range: parsed.data.range,
       violationType: parsed.data.violationType,
+      statusGroup: parsed.data.statusGroup,
     });
 
     return { data };

@@ -1,6 +1,7 @@
 import type {
   AnalyticsRange,
   AnalyticsResolution,
+  AnalyticsStatusGroup,
   ApplyDecisionResult,
   AuditPage,
   DecisionThresholds,
@@ -11,6 +12,7 @@ import type {
   Pagination,
   PrivacySettings,
   ReportDto,
+  ReportStatus,
   ReportSummaryDto,
   ReviewQueueQuery,
   ReviewQueueResponse,
@@ -189,12 +191,14 @@ export async function getH3Analytics(query: {
   resolution?: AnalyticsResolution;
   range?: AnalyticsRange;
   violationType?: ViolationTypeMeta['code'];
+  statusGroup?: AnalyticsStatusGroup;
 }): Promise<H3Analytics> {
   return request(
     `/v1/analytics/h3${toQuery({
       resolution: query.resolution,
       range: query.range,
       violationType: query.violationType,
+      statusGroup: query.statusGroup,
     })}`,
   );
 }
@@ -306,6 +310,30 @@ export async function getAllReportSummaries(
   }
 
   return items.slice(0, maxRecords);
+}
+
+/**
+ * Birden çok durumu tek listede toplar. Haritada durum grubu seçildiğinde
+ * nokta katmanının H3 yoğunluğuyla aynı kayıtları göstermesini sağlar.
+ * Sonuçlar yakalanma zamanına göre yeniden sıralanıp üst sınırla kesilir.
+ */
+export async function getAllReportSummariesForStatuses(
+  maxRecords: number,
+  filters: Omit<ListReportsQuery, 'limit' | 'offset' | 'status'>,
+  statuses: readonly ReportStatus[],
+): Promise<ReportSummaryDto[]> {
+  if (statuses.length === 0) {
+    return getAllReportSummaries(maxRecords, filters);
+  }
+
+  const groups = await Promise.all(
+    statuses.map((status) => getAllReportSummaries(maxRecords, { ...filters, status })),
+  );
+
+  return groups
+    .flat()
+    .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
+    .slice(0, maxRecords);
 }
 
 /** Görsel proxy'si için API yanıtını olduğu gibi döndürür. */

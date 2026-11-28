@@ -291,7 +291,7 @@ Taban adres: `http://localhost:3001/v1`
 | `PATCH /settings/thresholds` | Eşik güncelleme + `system_audit_log` yazımı |
 | `PATCH /settings/privacy` | KVKK politikası güncelleme + denetim izi |
 | `GET /settings/audit` | Sistem düzeyi ayar denetim kaydı |
-| `GET /analytics/h3` | Sunucu tarafı H3 yoğunluğu — `resolution` (7/8/9), `range` (7d…all), `violationType` |
+| `GET /analytics/h3` | Sunucu tarafı H3 yoğunluğu — `resolution` (7/8/9), `range` (7d…all), `violationType`, `statusGroup` (approved/pending/rejected) |
 
 ```bash
 curl -X POST http://localhost:3001/v1/reports \

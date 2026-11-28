@@ -8,6 +8,17 @@ export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 export const ANALYTICS_RESOLUTIONS = [7, 8, 9] as const;
 export type AnalyticsResolution = (typeof ANALYTICS_RESOLUTIONS)[number];
 
+/** Panelde sunulan anlaşılır durum grupları. */
+export const ANALYTICS_STATUS_GROUPS = ['approved', 'pending', 'rejected'] as const;
+export type AnalyticsStatusGroup = (typeof ANALYTICS_STATUS_GROUPS)[number];
+
+/** Durum grubunun ham ihbar durumlarına eşlemesi. */
+export const STATUS_GROUP_STATUSES: Record<AnalyticsStatusGroup, ReportStatus[]> = {
+  approved: ['auto_approved', 'approved'],
+  pending: ['pending_review'],
+  rejected: ['auto_rejected', 'rejected'],
+};
+
 export interface H3AnalyticsQuery {
   resolution: AnalyticsResolution;
   violationType?: ViolationType;

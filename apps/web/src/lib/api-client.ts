@@ -18,7 +18,6 @@ import type {
   SystemAuditEntry,
   SystemAuditPage,
   SystemSettings,
-  ViolationType,
   ViolationTypeMeta,
 } from './types';
 
@@ -275,19 +274,21 @@ export async function applyDecision(
 }
 
 /**
- * Harita için sayfalı listeyi toplar. API tek istekte en çok 100 kayıt döndürür;
- * 10.000 nokta hedefi için üst sınır yapılandırılabilir (varsayılan 2.000).
+ * Sayfalı listeyi toplayarak tek bir diziye indirger. API tek istekte en çok
+ * 100 kayıt döndürür; üst sınır yapılandırılabilir (harita için varsayılan
+ * 2.000, CSV dışa aktarma için 5.000).
  *
- * `violationType`, `from` ve `to` sunucu tarafında uygulanır; böylece 2.000
- * kayıt sınırına takılmadan önce yanlış zaman aralığındaki kayıtlar elenmez.
+ * Filtreler (`status`, `violationType`, `from`/`to`, skor aralığı) sunucu
+ * tarafında uygulanır; böylece kayıt sınırı dolmadan önce alakasız kayıtlar
+ * elenmez.
  */
 export async function getAllReportSummaries(
   maxRecords = 2_000,
-  filters: { violationType?: ViolationType; from?: string; to?: string } = {},
+  filters: Omit<ListReportsQuery, 'limit' | 'offset'> = {},
 ): Promise<ReportSummaryDto[]> {
   const pageSize = 100;
   const maxPages = Math.max(1, Math.ceil(maxRecords / pageSize));
-  const baseQuery = { ...filters, sort: 'recent' as const };
+  const baseQuery = { ...filters, sort: filters.sort ?? 'recent' };
 
   const first = await listReports({ ...baseQuery, limit: pageSize, offset: 0 });
   const items = [...first.items];

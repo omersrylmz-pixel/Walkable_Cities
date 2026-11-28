@@ -18,53 +18,20 @@ import {
   STATUS_LABELS,
   VIOLATION_LABELS,
   formatDateTime,
+  formatNumber,
   formatScore,
 } from '@/lib/format';
+import { REPORT_EXPORT_MAX_ROWS } from '@/lib/report-export';
+import { firstParam, parseReportFilters, pickOffset } from '@/lib/report-filters';
 import {
   REPORT_STATUSES,
   VIOLATION_TYPES,
-  type ListSort,
-  type ReportStatus,
-  type ViolationType,
 } from '@/lib/types';
 
 export const metadata = { title: 'İhbarlar' };
 export const dynamic = 'force-dynamic';
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function pickStatus(value: string | undefined): ReportStatus | undefined {
-  return value && (REPORT_STATUSES as readonly string[]).includes(value)
-    ? (value as ReportStatus)
-    : undefined;
-}
-
-function pickViolation(value: string | undefined): ViolationType | undefined {
-  return value && (VIOLATION_TYPES as readonly string[]).includes(value)
-    ? (value as ViolationType)
-    : undefined;
-}
-
-function pickSort(value: string | undefined): ListSort {
-  return value === 'score' ? 'score' : 'recent';
-}
-
-function pickScore(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value.replace(',', '.'));
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return undefined;
-  return parsed;
-}
-
-function pickOffset(value: string | undefined): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) return 0;
-  return parsed;
-}
 
 export default async function ReportsPage({
   searchParams,
@@ -74,12 +41,9 @@ export default async function ReportsPage({
   const user = await requireUser('/reports');
   const params = await searchParams;
 
-  const status = pickStatus(first(params.status));
-  const violationType = pickViolation(first(params.violationType));
-  const sort = pickSort(first(params.sort));
-  const minScore = pickScore(first(params.minScore));
-  const maxScore = pickScore(first(params.maxScore));
-  const offset = pickOffset(first(params.offset));
+  const getParam = (key: string): string | undefined => firstParam(params[key]);
+  const { status, violationType, sort, minScore, maxScore } = parseReportFilters(getParam);
+  const offset = pickOffset(getParam('offset'));
   const limit = 20;
 
   let result: Awaited<ReturnType<typeof listReports>>;
@@ -104,6 +68,12 @@ export default async function ReportsPage({
 
   const hasFilters = Boolean(status || violationType || minScore !== undefined || maxScore !== undefined);
   const reviewer = canReview(user.role);
+
+  const exportQuery = new URLSearchParams();
+  for (const [key, value] of Object.entries(queryParams)) {
+    if (value) exportQuery.set(key, value);
+  }
+  const exportHref = `/api/reports/export${exportQuery.toString() ? `?${exportQuery.toString()}` : ''}`;
 
   return (
     <>
@@ -190,6 +160,16 @@ export default async function ReportsPage({
                   Filtreleri temizle
                 </Link>
               ) : null}
+              <a
+                href={exportHref}
+                download
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                CSV indir
+              </a>
+              <span className="text-xs text-muted-foreground">
+                Seçili filtrelerle en fazla {formatNumber(REPORT_EXPORT_MAX_ROWS)} kayıt indirilir.
+              </span>
             </div>
           </form>
         </CardContent>

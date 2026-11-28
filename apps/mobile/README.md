@@ -25,6 +25,26 @@ API adresi:
 | iOS simülatörü / web | `http://localhost:3001` (otomatik) |
 | Fiziksel cihaz | `.env` → `EXPO_PUBLIC_API_URL=http://<LAN-IP>:3001` |
 
+### Tarayıcıda çalıştırma
+
+Tarayıcıda vatandaş akışını denemek için:
+
+```bash
+npm run mobile:start      # ardından terminalde "w" tuşuna basın
+# veya doğrudan:
+npx expo start --web --port 8081
+```
+
+- Kamera ve konum yalnızca **localhost** veya HTTPS üzerinde çalışır; `http://<LAN-IP>:8081`
+  adresinde tarayıcı izin vermez.
+- API'nin CORS listesinde `http://localhost:8081` bulunmalıdır
+  (`CORS_ORIGINS=http://localhost:3002,http://localhost:8081`).
+- Web'de görsel, tarayıcı depolamasına sığması için 1280 px / JPEG q=0.7 ve
+  **data URL** olarak saklanır. Bu sayede sayfa yenilense bile çevrimdışı kayıt
+  gönderilebilir; tarayıcı kotası nedeniyle web yalnızca demo içindir.
+- Fiziksel cihazda kuyruk görselleri belge dizininde tutulur ve 1920 px / q=0.85
+  kullanılır.
+
 ## Tasarım İlkeleri
 
 1. **Galeriden yükleme yok.** Yalnızca `expo-camera` ile canlı çekim; sahte/başlam
@@ -49,6 +69,10 @@ API adresi:
       -> [201/200 -> kuyruktan ve diskten sil]
       -> [Ağ hatası -> kuyrukta tut, bağlantıda otomatik dene]
 ```
+
+Web'de belge dizini yoktur: görsel 1280 px / q=0.7 hazırlanır ve kuyrukla
+birlikte data URL olarak saklanır. Gönderimde data URL `Blob`'a çevrilip
+multipart gövdesine eklenir; native tarafta `{ uri, name, type }` kullanılır.
 
 ## Klasör Yapısı
 
@@ -79,8 +103,8 @@ apps/mobile/
 | GPS sert sınır | > 50 m ise gönderim engellenir |
 | Saat farkı uyarısı | \|fark\| > 120 sn |
 | Saat farkı engeli | Cihaz 240 sn'den fazla ileriyse |
-| Görsel uzun kenarı | 1920 px |
-| JPEG kalitesi | 0.85 |
+| Görsel uzun kenarı | 1920 px (web: 1280 px) |
+| JPEG kalitesi | 0.85 (web: 0.70) |
 | Otomatik deneme | En fazla 8 (4xx kalıcı hata ise durur) |
 
 ## İzinler
@@ -100,4 +124,6 @@ Ses kaydı izni istenmez (`recordAudioAndroid: false`).
 - [x] Saat kayması kontrolü ve uyarısı
 - [x] Çevrimdışı kuyruk + idempotent yeniden gönderim
 - [x] `clientReportId` ile tekrar gönderimde mükerrer kayıt oluşmuyor
+- [x] Tarayıcıda uçtan uca: kamera → GPS → gönderim → panelde kayıt
+- [x] Tarayıcıda çevrimdışı kuyruk: yenileme sonrası kayıt korunuyor ve bağlantı gelince gönderiliyor
 - [ ] Fiziksel cihazda saha testi (Faz 1 kapanışı)

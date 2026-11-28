@@ -32,3 +32,11 @@ export const MAX_IMAGE_WIDTH = 1920;
 
 /** JPEG sıkıştırma kalitesi (0–1). */
 export const IMAGE_COMPRESS = 0.85;
+
+/**
+ * Web'de görsel, tarayıcı depolamasına sığması için data URL olarak kuyruğa
+ * yazılır. Daha küçük boyut ve daha yüksek sıkıştırma, localStorage kotasını
+ * aşmadan birkaç ihbarın çevrimdışı beklemesini sağlar.
+ */
+export const WEB_MAX_IMAGE_WIDTH = 1280;
+export const WEB_IMAGE_COMPRESS = 0.7;

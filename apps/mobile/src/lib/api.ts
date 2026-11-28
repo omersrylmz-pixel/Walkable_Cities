@@ -53,11 +53,7 @@ export async function postReport(item: QueueItem): Promise<CreateReportResponse[
   );
 
   // React Native FormData dosya parçası: { uri, name, type }
-  form.append('image', {
-    uri: item.imageUri,
-    name: `${item.clientReportId}.jpg`,
-    type: item.mimeType,
-  } as unknown as Blob);
+  await appendImage(form, item);
 
   let response: Response;
   try {
@@ -90,6 +86,41 @@ export async function postReport(item: QueueItem): Promise<CreateReportResponse[
   }
 
   return data;
+}
+
+/**
+ * Görseli multipart gövdesine ekler.
+ *
+ * React Native `{ uri, name, type }` nesnesini kabul eder; tarayıcı FormData'sı
+ * ise gerçek bir `Blob`/`File` bekler. Web'de kuyrukta saklanan data URL
+ * `fetch` ile Blob'a çevrilir, böylece aynı gönderim yolu iki platformda çalışır.
+ */
+async function appendImage(form: FormData, item: QueueItem): Promise<void> {
+  const filename = `${item.clientReportId}.jpg`;
+
+  if (Platform.OS !== 'web') {
+    form.append('image', {
+      uri: item.imageUri,
+      name: filename,
+      type: item.mimeType,
+    } as unknown as Blob);
+    return;
+  }
+
+  let blob: Blob;
+  try {
+    const response = await fetch(item.imageUri);
+    blob = await response.blob();
+  } catch (error) {
+    throw new ApiError(
+      `Görsel okunamadı: ${describeError(error)}`,
+      null,
+      false,
+      'IMAGE_READ_FAILED',
+    );
+  }
+
+  form.append('image', blob, filename);
 }
 
 /**

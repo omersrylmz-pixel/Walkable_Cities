@@ -90,7 +90,9 @@ apps/mobile/
 │       ├── config.ts        # API URL, eşikler, görsel limitleri
 │       ├── format.ts        # tarih/doğruluk biçimlendirme
 │       ├── location.ts      # izin + hedefli GPS okuma
-│       ├── media.ts         # yeniden boyutlandırma, JPEG, kalıcı kopya
+│       ├── media-core.ts    # platformdan bağımsız boyutlandırma + JPEG
+│       ├── media.ts         # native: belge dizinine kalıcı kopya
+│       ├── media.web.ts     # web: data URL (kalıcı tarayıcı kuyruğu)
 │       ├── queue.ts         # AsyncStorage kuyruğu, eşzamanlı gönderim kilidi
 │       └── types.ts         # ihlal türleri, QueueItem
 ```
